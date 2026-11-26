@@ -2,7 +2,26 @@
 import {
   MAX_LEVEL, chances, enhanceCost, basePrice, fragmentsOnDestroy, ITEMS, itemGoldPrice,
   DEX_BONUS, WEAPON_DEX_BONUS, ACHIEVEMENTS, weaponOf, rollWeapon,
+  UPGRADES, upgradeOf, upgradeCost, rebirthStones, REBIRTH_MIN, OFFLINE_BASE_HOURS, offlinePerHour, EVENTS, eventOf,
 } from './data.js';
+import { newState } from './state.js';
+
+// ---------- 보정치 (대장간 · 환생 · 이벤트) ----------
+export const upLv = (s, id) => s.upgrades[id] || 0;
+export const eventActive = (s, id, now = Date.now()) => !!s.event && s.event.id === id && s.event.until > now;
+export function mods(s) {
+  const lv = (id) => upLv(s, id) * upgradeOf(id).per;
+  return {
+    succ: lv('hammer') + (eventActive(s, 'luck') ? 5 : 0),
+    destroy: (1 - lv('anvil') / 100) * (eventActive(s, 'guard') ? 0.5 : 1),
+    great: (1 + lv('fortune') / 100) * (eventActive(s, 'great') ? 2 : 1),
+  };
+}
+export const costMul = (s) => (1 - upLv(s, 'furnace') * upgradeOf('furnace').per / 100)
+  * Math.max(0.5, 1 - s.rebirth.stones * 0.01) * (eventActive(s, 'sale') ? 0.5 : 1);
+// +0 무기는 골드가 모자라면 무료로 강화 (골드가 바닥나 막히는 일 방지)
+export const freeHammer = (s) => s.level === 0 && s.gold < Math.floor(enhanceCost(0) * costMul(s));
+export const costNow = (s, lv = s.level) => (lv === s.level && freeHammer(s) ? 0 : Math.max(1, Math.floor(enhanceCost(lv) * costMul(s))));
 
 export const activeItems = (s) => ({
   guard: s.use.guard && s.items.guard > 0,
@@ -10,10 +29,11 @@ export const activeItems = (s) => ({
   bless: s.use.bless && s.items.bless > 0,
 });
 
-export const currentChances = (s) => chances(s.level, activeItems(s), s.weapon);
-export const priceBonus = (s) => 1 + s.dex.length * DEX_BONUS + s.weaponsFound.length * WEAPON_DEX_BONUS;
+export const currentChances = (s) => chances(s.level, activeItems(s), s.weapon, mods(s));
+export const priceBonus = (s) => (1 + s.dex.length * DEX_BONUS + s.weaponsFound.length * WEAPON_DEX_BONUS
+  + upLv(s, 'merchant') * upgradeOf('merchant').per / 100 + s.rebirth.stones * 0.1) * (eventActive(s, 'noble') ? 1.5 : 1);
 export const sellPrice = (s, lv = s.level, wid = s.weapon) => Math.floor(basePrice(lv) * weaponOf(wid).price * priceBonus(s));
-export const canEnhance = (s) => s.level < MAX_LEVEL && s.gold >= enhanceCost(s.level);
+export const canEnhance = (s) => s.level < MAX_LEVEL && s.gold >= costNow(s);
 
 function register(s, lv) {
   if (lv > 0 && !s.dex.includes(lv)) s.dex.push(lv);
@@ -36,10 +56,11 @@ export function enhance(s, rand = Math.random) {
   const from = s.level;
   const wid = s.weapon;
   const used = activeItems(s);
-  const ch = chances(from, used, wid);
-  const raw = chances(from, { ...used, guard: false }, wid); // 방지권이 막았는지 판단용
+  const m = mods(s);
+  const ch = chances(from, used, wid, m);
+  const raw = chances(from, { ...used, guard: false }, wid, m); // 방지권이 막았는지 판단용
 
-  s.gold -= enhanceCost(from);
+  s.gold -= costNow(s);
   for (const id of Object.keys(used)) if (used[id]) { s.items[id]--; s.stats.itemsUsed++; }
   for (const id of Object.keys(s.use)) if (s.items[id] <= 0) s.use[id] = false; // 다 쓴 아이템은 자동 해제
   const st = s.stats;
@@ -66,7 +87,7 @@ export function enhance(s, rand = Math.random) {
     st.bestFail = Math.max(st.bestFail, st.fail);
     if (result === 'keep') { st.keeps++; if (saved) st.saved++; }
     else {
-      fragments = fragmentsOnDestroy(from, wid);
+      fragments = Math.floor(fragmentsOnDestroy(from, wid) * (1 + upLv(s, 'salvage') * upgradeOf('salvage').per / 100));
       s.fragments += fragments;
       st.fragsGot += fragments;
       st.destroys++;
@@ -99,7 +120,7 @@ export function sell(s) {
   return { level, price, weapon, next };
 }
 
-export const goldPrice = (s, id) => itemGoldPrice(id, s.best);
+export const goldPrice = (s, id) => Math.floor(itemGoldPrice(id, s.best) * (eventActive(s, 'peddler') ? 0.5 : 1));
 
 export function buy(s, id, currency) {
   if (currency === 'gold') {
@@ -148,17 +169,17 @@ export function autoStep(s) {
     return { action: 'stop', reason: `목표 +${a.target} 달성!` };
   }
   // 아이템 준비: 떨어지면 조각 → 골드 순서로 자동 구매 (강화 비용은 남겨 둠)
-  const risk = chances(s.level, {}, s.weapon).destroy > 0;
+  const risk = chances(s.level, {}, s.weapon, mods(s)).destroy > 0;
   for (const id of Object.keys(ITEMS)) {
     let want = a.items[id];
     if (id === 'guard' && a.guardOnlyRisk && !risk) want = false;
     if (want && s.items[id] <= 0) {
-      if (!buy(s, id, 'frag') && s.gold >= goldPrice(s, id) + enhanceCost(s.level)) buy(s, id, 'gold');
+      if (!buy(s, id, 'frag') && s.gold >= goldPrice(s, id) + costNow(s)) buy(s, id, 'gold');
     }
     s.use[id] = want && s.items[id] > 0;
   }
   if (!canEnhance(s)) {
-    if (s.level < MAX_LEVEL && a.onTarget === 'sell' && s.level > 0 && s.gold < enhanceCost(s.level)) {
+    if (s.level < MAX_LEVEL && a.onTarget === 'sell' && s.level > 0 && s.gold < costNow(s)) {
       return { action: 'sell', result: sell(s), note: '골드가 부족해 판매' };
     }
     return { action: 'stop', reason: '골드가 부족합니다' };
@@ -167,4 +188,78 @@ export function autoStep(s) {
   s.stats.autoTries++;
   if (r.result === 'destroy' && a.onDestroy === 'stop') return { action: 'enhance', result: r, stop: '무기가 파괴되어 멈췄습니다' };
   return { action: 'enhance', result: r };
+}
+
+// ---------- 대장간 업그레이드 ----------
+export function buyUpgrade(s, id) {
+  const u = upgradeOf(id);
+  const lv = upLv(s, id);
+  if (lv >= u.max) return false;
+  const c = upgradeCost(u, lv);
+  if (s.gold < c) return false;
+  s.gold -= c;
+  s.upgrades[id] = lv + 1;
+  checkAchievements(s);
+  return true;
+}
+
+// ---------- 환생 ----------
+// 초기화: 골드 · 현재 무기 · 최고 기록 · 아이템 · 조각 · 대장간 업그레이드
+// 유지: 도감 · 무기 도감 · 업적 · 통계 · 랭킹 · 환생석 · 설정
+export const canRebirth = (s) => s.best >= REBIRTH_MIN;
+export function rebirth(s) {
+  if (!canRebirth(s)) return null;
+  const gain = rebirthStones(s.best);
+  const fresh = newState();
+  s.rebirth.count++;
+  s.rebirth.stones += gain;
+  s.rebirth.total += gain;
+  s.gold = fresh.gold + s.rebirth.stones * 10000;
+  s.level = 0;
+  s.best = 0;
+  s.weapon = fresh.weapon;
+  if (!s.weaponsFound.includes(s.weapon)) s.weaponsFound.push(s.weapon);
+  s.items = fresh.items;
+  s.use = fresh.use;
+  s.fragments = 0;
+  s.upgrades = {};
+  checkAchievements(s);
+  return { gain };
+}
+
+// ---------- 오프라인 보상 ----------
+export const offlineHours = (s) => OFFLINE_BASE_HOURS + upLv(s, 'apprentice') * upgradeOf('apprentice').per;
+// 꺼 둔 시간(분)과 받을 골드. 5분 미만이면 null
+export function offlineReward(s, now = Date.now()) {
+  const mins = Math.min((now - (s.lastSeen || now)) / 60000, offlineHours(s) * 60);
+  if (mins < 5 || s.best < 1) return null;
+  return { mins: Math.floor(mins), gold: Math.floor(offlinePerHour(s.best) * priceBonus(s) * mins / 60) };
+}
+
+// ---------- 무작위 이벤트 ----------
+export function maybeStartEvent(s, now = Date.now(), rand = Math.random) {
+  if (s.event && s.event.until > now) return null;
+  if (s.event) s.event = null;
+  if (!s.nextEventAt) s.nextEventAt = now + (60 + rand() * 120) * 1000; // 첫 이벤트는 1~3분 뒤
+  if (now < s.nextEventAt) return null;
+  const e = EVENTS[Math.floor(rand() * EVENTS.length)];
+  s.event = { id: e.id, until: now + e.min * 60000 };
+  s.nextEventAt = now + e.min * 60000 + (180 + rand() * 180) * 1000; // 끝나고 3~6분 뒤 다음 이벤트
+  s.stats.events++;
+  checkAchievements(s);
+  return e;
+}
+export const currentEvent = (s, now = Date.now()) => (s.event && s.event.until > now ? eventOf(s.event.id) : null);
+
+// 보물 상자: 방지권 · 부적 · 주문서 중 무작위 몇 개
+export function openChest(s, rand = Math.random) {
+  if (!eventActive(s, 'chest')) return null;
+  s.event = null;
+  const n = 1 + Math.floor(rand() * 3) + Math.floor(s.best / 50);
+  const ids = Object.keys(ITEMS);
+  const got = {};
+  for (let i = 0; i < n; i++) { const id = ids[Math.floor(rand() * ids.length)]; got[id] = (got[id] || 0) + 1; s.items[id]++; }
+  s.stats.chests++;
+  checkAchievements(s);
+  return got;
 }

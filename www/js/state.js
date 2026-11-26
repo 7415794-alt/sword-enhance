@@ -21,7 +21,7 @@ export function newState() {
     stats: {
       tries: 0, greats: 0, successes: 0, keeps: 0, destroys: 0, saved: 0, sells: 0, earned: 0, bestSale: 0,
       streak: 0, bestStreak: 0, fail: 0, bestFail: 0, highGreat: 0, worstBoom: 0, fragsGot: 0,
-      bestSoldLv: 0, itemsUsed: 0, autoTries: 0,
+      bestSoldLv: 0, itemsUsed: 0, autoTries: 0, offlineClaims: 0, events: 0, chests: 0,
     },
     ranking: [], // 판매 기록 상위 10 { level, price, at, weapon }
     // 자동 강화 설정
@@ -33,6 +33,12 @@ export function newState() {
       guardOnlyRisk: true, // 파괴 확률이 있을 때만 방지권 사용
       fast: false, // 빠르게
     },
+    upgrades: {}, // 대장간 업그레이드 { id: 레벨 }
+    rebirth: { count: 0, stones: 0, total: 0 }, // 환생 횟수, 보유 환생석, 누적 환생석
+    event: null, // 진행 중인 이벤트 { id, until }
+    nextEventAt: 0,
+    online: { name: '', id: '', submitted: 0 }, // 온라인 랭킹 닉네임 · 기기 ID · 마지막 등록 점수
+    lastSeen: Date.now(), // 오프라인 보상 계산용
     settings: { sound: true },
     createdAt: Date.now(),
   };
@@ -52,6 +58,9 @@ export function load() {
       stats: { ...base.stats, ...saved.stats },
       auto: { ...base.auto, ...saved.auto, items: { ...base.auto.items, ...(saved.auto || {}).items } },
       settings: { ...base.settings, ...saved.settings },
+      upgrades: { ...saved.upgrades },
+      rebirth: { ...base.rebirth, ...saved.rebirth },
+      online: { ...base.online, ...saved.online },
     };
     // 무기가 없던 예전 저장 데이터: 장검으로 시작
     if (!saved.weapon) {

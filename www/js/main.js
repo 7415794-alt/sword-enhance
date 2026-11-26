@@ -1,12 +1,14 @@
 // 화면 연결 · 렌더링
 import {
   VERSION, MAX_LEVEL, ITEMS, ACHIEVEMENTS, WEAPONS, GRADE_COLOR, DEX_BONUS, WEAPON_DEX_BONUS,
-  enhanceCost, swordName, weaponName, tierOf, weaponOf, weaponChance,
+  swordName, weaponName, tierOf, weaponOf, weaponChance, UPGRADES, upgradeCost, rebirthStones, REBIRTH_MIN, eventOf,
 } from './data.js';
 import { load, save, reset, newState } from './state.js';
 import {
   currentChances, sellPrice, canEnhance, enhance, sell, buy, goldPrice, claim, claimAll, autoStep, priceBonus,
+  costNow, upLv, checkAchievements, buyUpgrade, canRebirth, rebirth, offlineReward, offlineHours, maybeStartEvent, currentEvent, openChest,
 } from './game.js';
+import { onlineEnabled, submitScore, fetchTop, scoreOf, cleanName, ensureId } from './online.js';
 import { fmt, pct } from './format.js';
 import { weaponSVG } from './weapon.js';
 import { sfx } from './sound.js';
@@ -32,7 +34,24 @@ function persist(force = false) {
   const now = Date.now();
   if (!force && now - lastSave < 1500) return;
   lastSave = now;
+  s.lastSeen = now;
   save(s);
+  maybeSubmit();
+}
+
+// ---------- 공용 창 (모달) ----------
+function modal(title, body, buttons = [{ label: '확인' }]) {
+  $('modalTitle').innerHTML = title;
+  $('modalBody').innerHTML = body;
+  $('modalBtns').innerHTML = '';
+  for (const b of buttons) {
+    const el = document.createElement('button');
+    el.className = `btn ${b.cls || 'enhance'}`;
+    el.innerHTML = `<span>${b.label}</span>`;
+    el.onclick = () => { $('modal').classList.remove('show'); b.onClick?.(); };
+    $('modalBtns').appendChild(el);
+  }
+  $('modal').classList.add('show');
 }
 
 // ---------- 강화 화면 ----------
@@ -70,7 +89,8 @@ function renderForge() {
       <span>${it.icon}</span><em>${it.name}</em><b>${fmt(n)}</b></button>`;
   }).join('');
 
-  $('cost').textContent = max ? '-' : `💰 ${fmt(enhanceCost(s.level))}`;
+  $('cost').textContent = max ? '-' : costNow(s) === 0 ? '무료 (골드 부족)' : `💰 ${fmt(costNow(s))}`;
+  renderEvent();
   $('enhanceBtn').disabled = auto || !canEnhance(s);
   $('sellPrice').textContent = s.level > 0 ? `💰 ${fmt(sellPrice(s))}` : '+0은 팔 수 없음';
   $('sellBtn').disabled = auto || s.level === 0;
@@ -219,6 +239,7 @@ function tick() {
 // ---------- 상점 ----------
 function renderShop() {
   renderHud();
+  $('shopSale').innerHTML = currentEvent(s)?.id === 'peddler' ? '🧳 떠돌이 상인 방문 중! 골드 가격 <b>50% 할인</b>' : '';
   $('shopList').innerHTML = Object.entries(ITEMS).map(([id, it]) => {
     const gp = goldPrice(s, id);
     return `<div class="card">
@@ -304,13 +325,187 @@ function renderRank() {
     ['최고 판매 단계', `+${st.bestSoldLv}`],
     ['최고 강화', `+${s.best}`],
     ['판매가 보너스', `+${Math.round((priceBonus(s) - 1) * 100)}%`],
+    ['환생', `${s.rebirth.count}회 · 💎 ${s.rebirth.total}`],
+    ['만난 이벤트', fmt(st.events)],
+    ['연 보물 상자', fmt(st.chests)],
   ];
   $('stats').innerHTML = items.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
   $('soundBtn').textContent = s.settings.sound ? '🔊 효과음 켜짐' : '🔇 효과음 꺼짐';
   $('ver').textContent = `검 강화하기 v${VERSION}`;
 }
 
-const RENDER = { forge: renderForge, shop: renderShop, dex: renderDex, ach: renderAch, rank: renderRank };
+// ---------- 무작위 이벤트 ----------
+function renderEvent() {
+  const e = currentEvent(s);
+  const bar = $('eventBar');
+  if (!e) { bar.className = 'event-bar'; bar.innerHTML = ''; return; }
+  const left = Math.max(0, Math.ceil((s.event.until - Date.now()) / 1000));
+  const t = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+  bar.className = `event-bar show ${e.id === 'chest' ? 'chest' : ''}`;
+  bar.innerHTML = e.id === 'chest'
+    ? `<span class="ei">🎁</span><b>보물 상자 발견!</b><em>눌러서 열기 · ${t}</em>`
+    : `<span class="ei">${e.icon}</span><b>${e.name}</b><em>${e.desc} · ${t}</em>`;
+}
+
+function eventTick() {
+  if (document.hidden) return;
+  const had = s.event?.id;
+  const e = maybeStartEvent(s);
+  if (e) {
+    sfx('great', s.settings.sound);
+    toast(`${e.icon} 이벤트: <b>${e.name}</b> · ${e.desc}`, 3000);
+    persist(true);
+    renderForge();
+    if (tab === 'shop') renderShop();
+  } else if (had && !currentEvent(s)) {
+    s.event = null;
+    renderForge();
+    if (tab === 'shop') renderShop();
+  } else if (tab === 'forge') renderEvent();
+}
+
+$('eventBar').addEventListener('click', () => {
+  const got = openChest(s);
+  if (!got) return;
+  sfx('great', s.settings.sound);
+  toast(`🎁 보물 상자: ${Object.entries(got).map(([k, v]) => `${ITEMS[k].icon} ${v}개`).join(' · ')}`, 2600);
+  persist(true);
+  renderForge();
+});
+
+// ---------- 오프라인 보상 ----------
+function checkOffline() {
+  const r = offlineReward(s);
+  s.lastSeen = Date.now();
+  if (!r) return;
+  const h = Math.floor(r.mins / 60);
+  const m = r.mins % 60;
+  modal('🧑‍🔧 대장간이 쉬지 않고 일했어요', `
+    <p>자리를 비운 <b>${h ? `${h}시간 ` : ''}${m}분</b> 동안<br>견습생들이 무기를 만들어 팔았습니다.</p>
+    <p class="big">💰 ${fmt(r.gold)}</p>
+    <p class="muted">최대 ${offlineHours(s)}시간까지 쌓입니다. (대장간 → 견습생 고용으로 늘리기)</p>`,
+  [{ label: '받기', onClick: () => {
+    const before = s.achieved.length;
+    s.gold += r.gold;
+    s.stats.offlineClaims++;
+    checkAchievements(s);
+    afterChange(before);
+    sfx('sell', s.settings.sound);
+  } }]);
+}
+
+// ---------- 대장간 (업그레이드 · 환생) ----------
+function renderSmith() {
+  renderHud();
+  $('upList').innerHTML = UPGRADES.map((u) => {
+    const lv = upLv(s, u.id);
+    const maxed = lv >= u.max;
+    const c = upgradeCost(u, lv);
+    return `<div class="card">
+      <div class="ic">${u.icon}</div>
+      <div class="info"><b>${u.name} <small>Lv.${lv}/${u.max}</small></b>
+        <span>${u.unit} ${u.fmt(+(lv * u.per).toFixed(1))}${maxed ? '' : ` → <b class="up">${u.fmt(+((lv + 1) * u.per).toFixed(1))}</b>`}</span>
+        <div class="lvbar"><i style="width:${(lv / u.max) * 100}%"></i></div></div>
+      <button class="btn small" data-up="${u.id}" ${!maxed && s.gold >= c ? '' : 'disabled'}>${maxed ? '최대' : `💰 ${fmt(c)}`}</button></div>`;
+  }).join('');
+
+  const gain = rebirthStones(s.best);
+  const st = s.rebirth.stones;
+  $('rebirthBox').innerHTML = `
+    <div class="reb-now">
+      <div><span>환생 횟수</span><b>${s.rebirth.count}회</b></div>
+      <div><span>보유 환생석</span><b>💎 ${st}</b></div>
+      <div><span>판매가</span><b>+${st * 10}%</b></div>
+      <div><span>강화 비용</span><b>-${Math.min(50, st)}%</b></div>
+    </div>
+    <p class="hint">최고 기록 <b>+${REBIRTH_MIN}</b>부터 환생할 수 있습니다. 골드 · 현재 무기 · 최고 기록 · 아이템 · 조각 · 대장간 업그레이드가 초기화되고,
+      도감 · 업적 · 통계는 남습니다. 환생석 1개당 판매가 +10%, 강화 비용 -1% (최대 -50%), 시작 골드 +1만.</p>
+    <button class="btn rebirth" id="rebirthBtn" ${canRebirth(s) ? '' : 'disabled'}>
+      <span>🔄 환생하기</span><small>${canRebirth(s) ? `환생석 💎 ${gain}개 획득 (+300이면 21개)` : `+${REBIRTH_MIN} 달성 필요 (현재 +${s.best})`}</small></button>`;
+}
+
+$('upList').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-up]');
+  if (!b) return;
+  if (buyUpgrade(s, b.dataset.up)) {
+    sfx('buy', s.settings.sound);
+    persist(true);
+    renderSmith();
+  }
+});
+
+$('rebirthBox').addEventListener('click', (e) => {
+  if (!e.target.closest('#rebirthBtn') || !canRebirth(s)) return;
+  const gain = rebirthStones(s.best);
+  modal('🔄 환생할까요?', `<p>최고 기록 <b>+${s.best}</b>으로 환생하면 <b>💎 환생석 ${gain}개</b>를 얻습니다.</p>
+    <p class="muted">골드 · 현재 무기 · 최고 기록 · 아이템 · 조각 · 대장간 업그레이드가 초기화됩니다.</p>`, [
+    { label: '취소', cls: 'small alt' },
+    { label: '환생', onClick: () => {
+      stopAuto();
+      const r = rebirth(s);
+      if (!r) return;
+      shownKey = '';
+      sfx('great', s.settings.sound);
+      toast(`🔄 환생 완료! 💎 환생석 ${r.gain}개 획득`, 3000);
+      persist(true);
+      renderSmith();
+      renderForge();
+    } },
+  ]);
+});
+
+// ---------- 온라인 랭킹 ----------
+let lastSubmit = 0;
+let submitting = false;
+function maybeSubmit(force = false) {
+  if (!onlineEnabled() || !s.online.name || submitting) return;
+  if (!force && (scoreOf(s) <= s.online.submitted || Date.now() - lastSubmit < 60000)) return;
+  submitting = true;
+  lastSubmit = Date.now();
+  submitScore(s).then(() => { checkAchAfter(); }).catch(() => {}).finally(() => { submitting = false; });
+}
+function checkAchAfter() {
+  const before = s.achieved.length;
+  checkAchievements(s);
+  if (s.achieved.length > before) afterChange(before); else save(s);
+}
+
+async function renderOnline() {
+  const box = $('onlineBox');
+  if (!onlineEnabled()) {
+    box.innerHTML = '<p class="hint">🔌 랭킹 서버가 아직 연결되지 않았습니다. 연결되면 전 세계 대장장이들과 기록을 겨룰 수 있어요.</p>';
+    return;
+  }
+  ensureId(s);
+  box.innerHTML = `
+    <div class="nick">
+      <input id="nickInput" maxlength="12" placeholder="닉네임 (최대 12자)" value="${cleanName(s.online.name)}">
+      <button class="btn small" id="nickSave">${s.online.name ? '저장 · 등록' : '등록'}</button>
+    </div>
+    <p class="hint">점수 = 누적 환생석 × 1000 + 현재 최고 기록. 내 점수 <b>${fmt(scoreOf(s))}</b></p>
+    <ol class="rank" id="onlineList"><li class="empty">불러오는 중...</li></ol>`;
+  try {
+    const rows = await fetchTop(50);
+    $('onlineList').innerHTML = rows.length
+      ? rows.map((r, i) => `<li class="${r.id === s.online.id ? 'me' : ''}"><span class="no">${i + 1}</span><b>${r.name}</b>
+          <em>+${r.best}</em><small>환생 ${r.rebirths}회 · 점수 ${fmt(r.score)}</small></li>`).join('')
+      : '<li class="empty">아직 등록된 기록이 없습니다. 첫 번째가 되어 보세요!</li>';
+  } catch (err) {
+    $('onlineList').innerHTML = `<li class="empty">랭킹을 불러오지 못했습니다 (인터넷 연결 확인)</li>`;
+  }
+}
+
+$('onlineBox').addEventListener('click', (e) => {
+  if (!e.target.closest('#nickSave')) return;
+  const name = cleanName($('nickInput').value);
+  if (!name) return toast('닉네임을 입력해 주세요');
+  s.online.name = name;
+  save(s);
+  submitScore(s).then(() => { toast('🌍 랭킹에 등록했습니다'); checkAchAfter(); renderOnline(); })
+    .catch(() => toast('등록에 실패했습니다. 인터넷 연결을 확인해 주세요'));
+});
+
+const RENDER = { forge: renderForge, shop: renderShop, smith: renderSmith, dex: renderDex, ach: renderAch, rank: () => { renderRank(); renderOnline(); } };
 const renderTab = (t) => RENDER[t]();
 
 // ---------- 이벤트 ----------
@@ -414,8 +609,14 @@ $('resetBtn').addEventListener('click', () => {
   renderForge();
 });
 
-document.addEventListener('visibilitychange', () => { if (document.hidden) persist(true); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) persist(true);
+  else checkOffline();
+});
+setInterval(eventTick, 1000);
+setInterval(() => { if (!document.hidden) { s.lastSeen = Date.now(); save(s); } }, 30000);
 
+checkOffline();
 renderForge();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !window.Capacitor) {

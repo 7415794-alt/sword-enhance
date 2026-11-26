@@ -60,16 +60,23 @@ console.log('최고 기록 도달 시점(강화 시도 횟수):', JSON.stringify
 
 // 3) 자동 강화(autoStep)만으로 처음부터 플레이: 목표 = 최고기록+2, 판매 후 반복, 방지권·부적 자동 구매
 console.log('\n3) 자동 강화로만 플레이 (목표 = 최고기록+2, 방지권·부적 자동 구매)');
-const { autoStep } = await import('../www/js/game.js');
+const { autoStep, buyUpgrade } = await import('../www/js/game.js');
+const { UPGRADES, upgradeCost } = await import('../www/js/data.js');
 const a = newState();
 a.auto = { ...a.auto, onTarget: 'sell', onDestroy: 'continue', items: { guard: true, lucky: true, bless: false }, guardOnlyRisk: true };
 const m3 = {};
 let n = 0, stops = 0;
 while (n < 2e6 && a.best < MAX_LEVEL) {
-  a.auto.target = Math.min(MAX_LEVEL, a.best + 2);
+  // 방지권 40개 살 돈이 있으면 기록 도전, 아니면 +25에서 판매하며 모으기
+  if (a.level === 0) a.auto.target = a.gold >= goldPrice(a, 'guard') * 40 ? Math.min(MAX_LEVEL, a.best + 2) : Math.min(25, a.best + 2);
+  if (process.env.UPG && a.level === 0) {
+    // 여유 골드가 업그레이드 가격의 5배 이상이면 가장 싼 업그레이드 구매
+    const ups = UPGRADES.filter((u) => (a.upgrades[u.id] || 0) < u.max).map((u) => [u, upgradeCost(u, a.upgrades[u.id] || 0)]).sort((x, y) => x[1] - y[1]);
+    if (ups.length && a.gold >= ups[0][1] * 5) buyUpgrade(a, ups[0][0].id);
+  }
   const r = autoStep(a);
   n++;
-  if (r.action === 'stop') { stops++; a.gold += 1000; }
+  if (r.action === 'stop') stops++;
   for (const id of a.achieved) if (!a.claimed.includes(id)) claim(a, id);
   for (const m of goals) if (a.best >= m && !m3[m]) m3[m] = a.stats.tries;
 }

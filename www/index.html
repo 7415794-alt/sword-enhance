@@ -26,6 +26,7 @@
     <main id="views">
       <!-- 강화 -->
       <section class="view active" data-view="forge">
+        <button class="event-bar" id="eventBar"></button>
         <div class="anvil">
           <div class="sword-name" id="swordName"></div>
           <div class="weapon-info" id="weaponInfo"></div>
@@ -48,7 +49,17 @@
       <section class="view" data-view="shop">
         <h2>보조 아이템 상점</h2>
         <p class="hint">골드 가격은 최고 강화 기록이 오를수록 비싸집니다. 검 조각은 검이 파괴될 때 얻습니다.</p>
+        <div id="shopSale" class="sale-note"></div>
         <div id="shopList" class="list"></div>
+      </section>
+
+      <!-- 대장간 -->
+      <section class="view" data-view="smith">
+        <h2>대장간 업그레이드</h2>
+        <p class="hint">골드로 대장간을 영구히 강화합니다. 환생하면 초기화됩니다.</p>
+        <div id="upList" class="list"></div>
+        <h2>환생</h2>
+        <div id="rebirthBox" class="reb"></div>
       </section>
 
       <!-- 도감 -->
@@ -70,8 +81,10 @@
 
       <!-- 기록 · 랭킹 -->
       <section class="view" data-view="rank">
-        <h2>최고 판매 랭킹</h2>
-        <p class="hint">이 기기에서 판매한 검 중 가장 비싼 10자루입니다.</p>
+        <h2>🌍 온라인 랭킹</h2>
+        <div id="onlineBox"></div>
+        <h2>내 최고 판매 TOP 10</h2>
+        <p class="hint">이 기기에서 판매한 무기 중 가장 비싼 10개입니다.</p>
         <ol id="rankList" class="rank"></ol>
         <h2>통계</h2>
         <div id="stats" class="stats"></div>
@@ -86,12 +99,22 @@
     <nav class="tabs" id="tabs">
       <button data-tab="forge" class="active"><span>🔨</span>강화</button>
       <button data-tab="shop"><span>🛒</span>상점</button>
+      <button data-tab="smith"><span>🏛️</span>대장간</button>
       <button data-tab="dex"><span>📖</span>도감</button>
       <button data-tab="ach"><span>🏅</span>업적<i class="dot" id="achDot"></i></button>
       <button data-tab="rank"><span>👑</span>기록</button>
     </nav>
 
     <div class="toast" id="toast"></div>
+
+    <!-- 공용 창 -->
+    <div class="sheet-bg modal" id="modal">
+      <div class="sheet">
+        <h3 id="modalTitle"></h3>
+        <div id="modalBody" class="modal-body"></div>
+        <div id="modalBtns" class="sheet-actions"></div>
+      </div>
+    </div>
 
     <!-- 자동 강화 설정 -->
     <div class="sheet-bg" id="autoSheet">

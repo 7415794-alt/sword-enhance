@@ -1,5 +1,5 @@
 // 게임 데이터 · 밸런스 수치
-export const VERSION = '0.3.0';
+export const VERSION = '0.4.0';
 export const MAX_LEVEL = 300;
 
 // 현재 단계(L)에서 강화를 시도할 때의 확률 (%)
@@ -71,13 +71,15 @@ export const weaponName = (lv, wid) => `${tierOf(lv).name} ${weaponOf(wid).name}
 export const swordName = (lv, wid = 'sword') => `+${lv} ${weaponName(lv, wid)}`;
 
 // 강화 확률. items: { lucky, bless, guard } 적용 여부, wid: 무기 종류
-export function chances(lv, items = {}, wid = 'sword') {
+// m: 대장간 · 환생 · 이벤트 보정 { succ: +%p, destroy: 배율, great: 배율 }
+export const NO_MODS = { succ: 0, destroy: 1, great: 1 };
+export function chances(lv, items = {}, wid = 'sword', m = NO_MODS) {
   if (lv >= MAX_LEVEL) return { great: 0, success: 0, keep: 100, destroy: 0 };
   const w = weaponOf(wid);
-  let destroy = Math.min(60, destroyRate(lv) * w.destroy);
-  let succ = Math.min(100 - destroy, successRate(lv) + w.succ);
+  let destroy = Math.min(60, destroyRate(lv) * w.destroy * m.destroy);
+  let succ = Math.min(100 - destroy, successRate(lv) + w.succ + m.succ);
   if (items.lucky) succ = Math.min(100 - destroy, succ + luckyBonus(succ)); // 행운의 부적 (유지에서 차감)
-  let great = lv + 2 <= MAX_LEVEL ? succ * GREAT_RATIO * w.great : 0;
+  let great = lv + 2 <= MAX_LEVEL ? succ * GREAT_RATIO * w.great * m.great : 0;
   if (items.bless) great *= 3; // 축복 주문서: 대성공 3배
   great = Math.min(succ, great);
   if (items.guard) destroy = 0; // 파괴 방지권: 파괴 → 유지
@@ -120,6 +122,44 @@ export const itemGoldPrice = (id, best) => Math.floor(ITEMS[id].gold * Math.pow(
 // 도감 보너스: 등록된 단계 하나당 판매가 +1%, 발견한 무기 하나당 +2%
 export const DEX_BONUS = 0.01;
 export const WEAPON_DEX_BONUS = 0.02;
+
+// ---------- 대장간 업그레이드 (골드로 사는 영구 능력, 환생하면 초기화) ----------
+// cost: 첫 레벨 가격, grow: 레벨마다 가격 배율, per: 레벨당 효과
+export const UPGRADES = [
+  { id: 'hammer', icon: '🔨', name: '정밀한 망치', unit: '성공 확률', per: 0.5, fmt: (v) => `+${v}%p`, max: 10, cost: 50000, grow: 6 },
+  { id: 'anvil', icon: '🧱', name: '단단한 모루', unit: '파괴 확률', per: 3, fmt: (v) => `-${v}%`, max: 10, cost: 80000, grow: 6 },
+  { id: 'fortune', icon: '🌟', name: '행운의 부적함', unit: '대성공 확률', per: 10, fmt: (v) => `+${v}%`, max: 10, cost: 30000, grow: 5 },
+  { id: 'merchant', icon: '🤝', name: '상인 길드 인맥', unit: '판매가', per: 5, fmt: (v) => `+${v}%`, max: 20, cost: 20000, grow: 3.2 },
+  { id: 'furnace', icon: '🔥', name: '효율적인 화로', unit: '강화 비용', per: 2, fmt: (v) => `-${v}%`, max: 15, cost: 40000, grow: 4 },
+  { id: 'salvage', icon: '🧲', name: '고철 회수기', unit: '파괴 시 조각', per: 20, fmt: (v) => `+${v}%`, max: 10, cost: 10000, grow: 4 },
+  { id: 'apprentice', icon: '🧑‍🔧', name: '견습생 고용', unit: '오프라인 보상', per: 1, fmt: (v) => `+${v}시간`, max: 10, cost: 30000, grow: 5 },
+];
+export const upgradeCost = (u, lv) => Math.floor(u.cost * Math.pow(u.grow, lv));
+export const upgradeOf = (id) => UPGRADES.find((u) => u.id === id);
+
+// ---------- 환생 ----------
+// 최고 기록 +100부터 환생 가능. 환생석 = (최고 기록 - 90) / 10 (내림), +300이면 21개
+// 환생석 1개당: 판매가 +10%, 강화 비용 -1% (최대 -50%), 시작 골드 +1만
+export const REBIRTH_MIN = 100;
+export const rebirthStones = (best) => (best < REBIRTH_MIN ? 0 : Math.floor((best - 90) / 10));
+
+// ---------- 오프라인 보상 ----------
+// 앱을 끈 동안 시간당 (최고 기록 60% 단계의 판매가 × 2) 골드, 기본 최대 2시간
+export const OFFLINE_BASE_HOURS = 2;
+export const offlinePerHour = (best) => Math.floor(basePrice(Math.max(1, Math.floor(best * 0.6))) * 2);
+
+// ---------- 무작위 이벤트 ----------
+// 플레이 중 3~6분마다 하나씩 발생. min: 지속 시간(분), 0이면 즉시 보상
+export const EVENTS = [
+  { id: 'luck', icon: '🌟', name: '행운의 시간', desc: '성공 확률 +5%p', min: 3 },
+  { id: 'great', icon: '💥', name: '대성공 축제', desc: '대성공 확률 2배', min: 3 },
+  { id: 'guard', icon: '🛡️', name: '수호의 시간', desc: '파괴 확률 절반', min: 3 },
+  { id: 'noble', icon: '👑', name: '귀족 손님 방문', desc: '판매가 1.5배', min: 3 },
+  { id: 'peddler', icon: '🧳', name: '떠돌이 상인', desc: '상점 아이템 50% 할인', min: 3 },
+  { id: 'sale', icon: '🔥', name: '화로 대청소', desc: '강화 비용 절반', min: 2 },
+  { id: 'chest', icon: '🎁', name: '보물 상자', desc: '눌러서 아이템 획득 (30초)', min: 0.5 },
+];
+export const eventOf = (id) => EVENTS.find((e) => e.id === id);
 
 // 업적. check(s) 가 true 이면 달성, reward 를 받음. cat: 화면에서 묶어 보여줄 분류
 const A = (cat, id, name, desc, check, reward) => ({ cat, id, name, desc, check, reward });
@@ -196,4 +236,16 @@ export const ACHIEVEMENTS = [
   A('기타', 'item1000', '소모품 중독', '보조 아이템 1,000개 사용', (s) => st(s).itemsUsed >= 1000, { guard: 50 }),
   A('기타', 'auto1000', '자동화의 시작', '자동 강화 1,000번', (s) => st(s).autoTries >= 1000, { lucky: 10 }),
   A('기타', 'auto10k', '쉬지 않는 대장간', '자동 강화 10,000번', (s) => st(s).autoTries >= 10000, { guard: 30 }),
+  // 대장간 · 환생 · 이벤트 · 랭킹
+  A('대장간', 'up1', '대장간 확장', '대장간 업그레이드 1번', (s) => upTotal(s) >= 1, { gold: 20000 }),
+  A('대장간', 'up20', '번듯한 대장간', '대장간 업그레이드 합계 20레벨', (s) => upTotal(s) >= 20, { guard: 10 }),
+  A('대장간', 'upmax', '전설의 대장간', '대장간 업그레이드 모두 최대', (s) => UPGRADES.every((u) => (s.upgrades[u.id] || 0) >= u.max), { guard: 100 }),
+  A('대장간', 'reb1', '다시 태어난 대장장이', '환생 1번', (s) => s.rebirth.count >= 1, { guard: 20, lucky: 20 }),
+  A('대장간', 'reb5', '윤회의 망치', '환생 5번', (s) => s.rebirth.count >= 5, { guard: 100 }),
+  A('대장간', 'stone50', '환생석 수집가', '환생석 누적 50개', (s) => s.rebirth.total >= 50, { guard: 200 }),
+  A('대장간', 'offline1', '잘 쉬고 왔어요', '오프라인 보상 받기', (s) => st(s).offlineClaims >= 1, { lucky: 3 }),
+  A('대장간', 'event10', '이벤트 사냥꾼', '무작위 이벤트 10번 만나기', (s) => st(s).events >= 10, { bless: 10 }),
+  A('대장간', 'chest10', '보물 사냥꾼', '보물 상자 10개 열기', (s) => st(s).chests >= 10, { guard: 10 }),
+  A('대장간', 'online', '세계에 이름을', '온라인 랭킹 등록', (s) => !!s.online.submitted, { guard: 5 }),
 ];
+const upTotal = (s) => Object.values(s.upgrades).reduce((a, b) => a + b, 0);

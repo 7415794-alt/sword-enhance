@@ -31,7 +31,7 @@ export function newState() {
       onDestroy: 'continue', // 파괴되면: continue | stop
       items: { guard: true, lucky: false, bless: false }, // 사용할 아이템 (떨어지면 자동 구매)
       smart: true, // 이득일 때만 아이템 사용 (파괴 위험 × 무기 가치 > 방지권 가격 등)
-      fast: false, // 빠르게
+      speed: 1, // 배속 (1 · 2 · 4 · 8 · 16 · 32 · 64 · 128)
     },
     upgrades: {}, // 대장간 업그레이드 { id: 레벨 }
     storage: [], // 보관한 무기 [{ uid, weapon, level, hunting }]
@@ -82,6 +82,8 @@ export function load() {
       online: { ...base.online, ...saved.online },
     };
     if (!saved.auto || saved.auto.smart === undefined) s.auto.smart = true; // 예전 설정 → 이득일 때만 사용
+    if (!saved.auto || saved.auto.speed === undefined) s.auto.speed = saved.auto && saved.auto.fast ? 4 : 1; // 예전 '빠르게' → 4배속
+    delete s.auto.fast;
     // 무기가 없던 예전 저장 데이터: 장검으로 시작
     if (!saved.weapon) {
       s.weapon = 'sword';

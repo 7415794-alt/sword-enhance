@@ -109,7 +109,10 @@ function renderForge() {
 
 const RESULT = { great: ['대성공!!', 'great'], success: ['성공!', 'success'], keep: ['유지', 'keep'], destroy: ['파괴...', 'destroy'] };
 
-function showResult(r, quiet) {
+// speed: 자동 강화 배속. 4배부터 효과음을 줄이고, 16배부터는 효과음 · 알림을 끔 (새 무기 발견만 알림)
+function showResult(r, speed = 1) {
+  const quiet = speed >= 4;
+  const mute = speed >= 16;
   const el = $('result');
   const [text, cls] = RESULT[r.result];
   let sub = '';
@@ -126,13 +129,14 @@ function showResult(r, quiet) {
   wrap.className = 'sword-wrap';
   void wrap.offsetWidth;
   wrap.classList.add(`fx-${cls}`);
-  if (!quiet || r.result === 'great' || r.result === 'destroy') sfx(r.result, s.settings.sound);
+  if (!quiet || (!mute && (r.result === 'great' || r.result === 'destroy'))) sfx(r.result, s.settings.sound);
   if (navigator.vibrate && r.result === 'destroy' && !quiet) navigator.vibrate(120);
-  if (r.next) announceWeapon(r.next);
+  if (r.next) announceWeapon(r.next, mute);
 }
 
-function announceWeapon(next) {
+function announceWeapon(next, mute = false) {
   const w = weaponOf(next.weapon);
+  if (mute && !next.fresh) return;
   const rare = ['희귀', '영웅', '전설', '신화'].includes(w.grade);
   if (next.fresh) toast(`🆕 새 무기 발견! ${gradeTag(w)} <b>${w.name}</b>`, 2500);
   else if (rare) toast(`${gradeTag(w)} <b>${w.name}</b> 획득!`);
@@ -155,14 +159,14 @@ function doEnhance() {
   }, 280);
 }
 
-function showSold(r) {
-  sfx('sell', s.settings.sound);
+function showSold(r, speed = 1) {
+  if (speed < 16) sfx('sell', s.settings.sound);
   const el = $('result');
   el.className = 'result sold';
   el.innerHTML = `<b>판매 완료</b><span>+${r.level} ${weaponOf(r.weapon).name} → 💰 ${fmt(r.price)}</span>`;
   void el.offsetWidth;
   el.classList.add('pop');
-  announceWeapon(r.next);
+  announceWeapon(r.next, speed >= 16);
 }
 
 function doSell() {
@@ -227,34 +231,53 @@ function stopAuto(msg) {
   if (msg) toast(msg, 2200);
 }
 
+// 배속: 1배는 380ms마다 1번. 빠른 배속은 화면을 40ms마다 한 번만 그리고 그사이 여러 번 강화
+const BASE_MS = 380;
 function tick() {
   if (!auto) return;
+  const speed = s.auto.speed || 1;
+  const interval = Math.max(40, BASE_MS / speed);
+  auto.acc = (auto.acc || 0) + (interval * speed) / BASE_MS;
+  const steps = Math.max(1, Math.floor(auto.acc));
+  auto.acc -= steps;
   const before = s.achieved.length;
-  const step = autoStep(s);
-  auto.n++;
-  if (step.action === 'stop') return stopAuto(`⏹ ${step.reason}`);
-  if (step.action === 'sell') showSold(step.result);
-  else if (step.action === 'store') showStored(step.result);
-  else showResult(step.result, s.auto.fast);
+  let last = null;
+  let stopMsg = null;
+  for (let i = 0; i < steps; i++) {
+    const step = autoStep(s);
+    auto.n++;
+    if (step.action === 'stop') { stopMsg = step.reason; break; }
+    last = step;
+    if (step.stop) { stopMsg = step.stop; break; }
+    // 빠른 배속에서도 새 무기 발견은 놓치지 않게 알림
+    const next = step.result?.next;
+    if (next?.fresh && speed >= 16) announceWeapon(next);
+  }
+  if (last) {
+    if (last.action === 'sell') showSold(last.result, speed);
+    else if (last.action === 'store') showStored(last.result, speed);
+    else showResult(last.result, speed);
+  }
   if (s.achieved.length > before) {
+    const n = s.achieved.length - before;
     const a = ACHIEVEMENTS.find((x) => x.id === s.achieved[s.achieved.length - 1]);
-    toast(`🏅 업적 달성: ${a.name}`);
+    toast(`🏅 업적 달성: ${a.name}${n > 1 ? ` 외 ${n - 1}개` : ''}`);
   }
   persist();
   renderForge();
-  if (step.stop) return stopAuto(`⏹ ${step.stop}`);
-  auto.timer = setTimeout(tick, s.auto.fast ? 120 : 380);
+  if (stopMsg) return stopAuto(`⏹ ${stopMsg}`);
+  auto.timer = setTimeout(tick, interval);
 }
 
 // ---------- 보관 · 사냥 ----------
-function showStored(r) {
-  sfx('buy', s.settings.sound);
+function showStored(r, speed = 1) {
+  if (speed < 16) sfx('buy', s.settings.sound);
   const el = $('result');
   el.className = 'result sold';
   el.innerHTML = `<b>📦 보관 완료</b><span>+${r.item.level} ${weaponOf(r.item.weapon).name} · ⚔️ ${fmt(attackOf(r.item.level, r.item.weapon))}</span>`;
   void el.offsetWidth;
   el.classList.add('pop');
-  announceWeapon(r.next);
+  announceWeapon(r.next, speed >= 16);
 }
 
 function doStore() {
@@ -638,7 +661,7 @@ $('autoSheet').querySelector('.sheet').addEventListener('click', (e) => {
   const opt = e.target.closest('[data-opt]');
   if (opt) {
     const [k, v] = opt.dataset.opt.split(':');
-    s.auto[k] = v === 'true' ? true : v === 'false' ? false : v;
+    s.auto[k] = v === 'true' ? true : v === 'false' ? false : /^\d+$/.test(v) ? Number(v) : v;
   }
   if (step || opt) { persist(true); renderAutoSheet(); renderForge(); }
 });

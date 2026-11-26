@@ -138,6 +138,14 @@
           <button class="link" data-step="0">최고 기록 +1로 맞추기</button>
         </div>
         <div class="field">
+          <label>배속</label>
+          <div class="seg-btns speeds">
+            <button data-opt="speed:1">1배</button><button data-opt="speed:2">2배</button><button data-opt="speed:4">4배</button><button data-opt="speed:8">8배</button>
+            <button data-opt="speed:16">16배</button><button data-opt="speed:32">32배</button><button data-opt="speed:64">64배</button><button data-opt="speed:128">128배</button>
+          </div>
+          <small class="note">1배 = 1초에 약 2.6번 강화 · 128배 = 1초에 약 337번 강화. 사냥 · 이벤트 시간은 그대로예요.</small>
+        </div>
+        <div class="field">
           <label>목표에 도달하면</label>
           <div class="seg-btns three"><button data-opt="onTarget:sell">판매 후 반복</button><button data-opt="onTarget:store">보관 후 반복</button><button data-opt="onTarget:stop">멈춤</button></div>
           <small class="note">보관 후 반복: 보관함이 가득 차면 판매하고, 강한 무기는 자동으로 사냥에 배치해요.</small>
@@ -149,10 +157,6 @@
         <div class="field">
           <label>사용할 아이템 <small>(떨어지면 조각 → 골드로 자동 구매)</small></label>
           <div id="autoItems" class="checks"></div>
-        </div>
-        <div class="field">
-          <label>속도</label>
-          <div class="seg-btns"><button data-opt="fast:false">보통</button><button data-opt="fast:true">빠르게</button></div>
         </div>
         <div class="sheet-actions">
           <button class="btn small alt" id="autoClose">닫기</button>

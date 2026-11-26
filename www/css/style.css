@@ -318,6 +318,8 @@ h2 small { font-size: 12px; color: var(--muted); font-weight: 500; margin-left: 
 .actions .btn small { font-size: 11px; white-space: nowrap; }
 .actions .btn.enhance { font-size: 20px; }
 .seg-btns.three { grid-template-columns: 1fr 1fr 1fr; }
+.seg-btns.speeds { grid-template-columns: repeat(4, 1fr); }
+.seg-btns.speeds button { padding: 8px 2px; font-size: 13px; }
 .note { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; }
 .hunt-box { background: linear-gradient(180deg, #1c2a1a, var(--card)); border: 1px solid #3f6212; border-radius: var(--radius); padding: 10px; margin-bottom: 12px; }
 .hunt-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }

@@ -517,7 +517,7 @@ $('autoStart').addEventListener('click', startAuto);
 $('autoClose').addEventListener('click', closeAutoSheet);
 $('autoSheet').addEventListener('click', (e) => { if (e.target.id === 'autoSheet') closeAutoSheet(); });
 
-document.querySelector('.sheet').addEventListener('click', (e) => {
+$('autoSheet').querySelector('.sheet').addEventListener('click', (e) => {
   const step = e.target.closest('[data-step]');
   if (step) {
     const d = Number(step.dataset.step);
@@ -530,7 +530,7 @@ document.querySelector('.sheet').addEventListener('click', (e) => {
   }
   if (step || opt) { persist(true); renderAutoSheet(); renderForge(); }
 });
-document.querySelector('.sheet').addEventListener('change', (e) => {
+$('autoSheet').querySelector('.sheet').addEventListener('change', (e) => {
   if (e.target.dataset.aitem) s.auto.items[e.target.dataset.aitem] = e.target.checked;
   if (e.target.id === 'guardOnlyRisk') s.auto.guardOnlyRisk = e.target.checked;
   persist(true);

@@ -21,7 +21,7 @@ export function newState() {
     stats: {
       tries: 0, greats: 0, successes: 0, keeps: 0, destroys: 0, saved: 0, sells: 0, earned: 0, bestSale: 0,
       streak: 0, bestStreak: 0, fail: 0, bestFail: 0, highGreat: 0, worstBoom: 0, fragsGot: 0,
-      bestSoldLv: 0, itemsUsed: 0, autoTries: 0, offlineClaims: 0, events: 0, chests: 0, stored: 0, hunted: 0,
+      bestSoldLv: 0, itemsUsed: 0, autoTries: 0, offlineClaims: 0, events: 0, chests: 0, stored: 0, hunted: 0, swaps: 0,
     },
     ranking: [], // 판매 기록 상위 10 { level, price, at, weapon }
     // 자동 강화 설정
@@ -31,6 +31,7 @@ export function newState() {
       onDestroy: 'continue', // 파괴되면: continue | stop
       items: { guard: true, lucky: false, bless: false }, // 사용할 아이템 (떨어지면 자동 구매)
       smart: true, // 이득일 때만 아이템 사용 (파괴 위험 × 무기 가치 > 방지권 가격 등)
+      swap: true, // 강화 중 무기가 보관함의 가장 약한 무기보다 강해지면 바로 맞바꿈 (직접 강화에도 적용)
       speed: 1, // 배속 (1 · 2 · 4 · 8 · 16 · 32 · 64 · 128)
     },
     upgrades: {}, // 대장간 업그레이드 { id: 레벨 }
@@ -81,6 +82,7 @@ export function load() {
       rebirth: { ...base.rebirth, ...saved.rebirth },
       online: { ...base.online, ...saved.online },
     };
+    if (!saved.auto || saved.auto.swap === undefined) s.auto.swap = true;
     if (!saved.auto || saved.auto.smart === undefined) s.auto.smart = true; // 예전 설정 → 이득일 때만 사용
     if (!saved.auto || saved.auto.speed === undefined) s.auto.speed = saved.auto && saved.auto.fast ? 4 : 1; // 예전 '빠르게' → 4배속
     delete s.auto.fast;

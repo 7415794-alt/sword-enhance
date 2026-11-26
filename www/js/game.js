@@ -116,8 +116,25 @@ export function enhance(s, rand = Math.random) {
     }
   }
   register(s, s.level);
+  const to = s.level;
+  // 강해진 무기는 보관함의 가장 약한 무기와 바로 교체 (약한 무기를 꺼내 이어서 강화)
+  const swap = result === 'great' || result === 'success' ? swapIfStronger(s) : null;
   checkAchievements(s);
-  return { result, from, to: s.level, weapon: wid, saved, fragments, next };
+  return { result, from, to, weapon: wid, saved, fragments, next, swap };
+}
+
+// 보관함이 가득 차 있고 지금 무기 공격력이 가장 약한 보관 무기보다 높으면 맞바꿈 (아무것도 팔지 않음)
+export function swapIfStronger(s) {
+  if (!s.auto.swap || s.storage.length < storageCap(s) || s.level < 1) return null;
+  const w = weakestStored(s);
+  if (!w || attackOf(s.level, s.weapon) <= attackOf(w.level, w.weapon)) return null;
+  const i = s.storage.indexOf(w);
+  const put = { uid: s.nextUid++, weapon: s.weapon, level: s.level };
+  s.storage[i] = put;
+  s.weapon = w.weapon;
+  s.level = w.level;
+  s.stats.swaps = (s.stats.swaps || 0) + 1;
+  return { put, took: w };
 }
 
 // 판매: 현재 무기를 팔고 새 +0 무기를 받음

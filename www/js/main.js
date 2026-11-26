@@ -138,6 +138,10 @@ function showResult(r, speed = 1) {
   if (!quiet || (!mute && (r.result === 'great' || r.result === 'destroy'))) sfx(r.result, s.settings.sound);
   if (navigator.vibrate && r.result === 'destroy' && !quiet) navigator.vibrate(120);
   if (r.next) announceWeapon(r.next, mute);
+  if (r.swap) {
+    el.innerHTML = `<b>🔄 교체!</b><span>+${r.swap.put.level} ${weaponOf(r.swap.put.weapon).name} 보관(사냥) ↔ +${r.swap.took.level} ${weaponOf(r.swap.took.weapon).name} 꺼내서 강화</span>`;
+    if (!mute) sfx('buy', s.settings.sound);
+  }
 }
 
 function announceWeapon(next, mute = false) {
@@ -217,6 +221,8 @@ function renderAutoSheet() {
   $('autoItems').innerHTML = Object.entries(ITEMS).map(([id, it]) => `
     <label class="check"><input type="checkbox" data-aitem="${id}" ${a.items[id] ? 'checked' : ''}>
       <span>${it.icon} ${it.name}</span><small>보유 ${fmt(s.items[id])}</small></label>`).join('')
+    + `<label class="check"><input type="checkbox" id="swapStronger" ${a.swap ? 'checked' : ''}>
+      <span>🔄 강해지면 보관함 무기와 바로 교체<br><small class="note">보관함이 가득 찼을 때, 강화 중인 무기의 공격력이 가장 약한 보관 무기보다 높아지면 즉시 맞바꾸고 약한 무기를 이어서 강화해요. 직접 강화에도 적용돼요.</small></span></label>`
     + `<label class="check"><input type="checkbox" id="smartItems" ${a.smart ? 'checked' : ''}>
       <span>이득일 때만 사용 (추천)<br><small class="note">파밍 중에는 무기 가치보다 비싼 아이템은 안 써요. 기록 도전 중(목표 > 최고 기록)에는 방지권을 아끼지 않아요.</small></span></label>`;
 }
@@ -270,6 +276,7 @@ function tick() {
     if (step.action === 'store') { auto.stored++; if (step.result.replaced) auto.replaced++; }
     else if (step.action === 'sell') { auto.sold++; if (step.weaker) auto.weaker++; }
     else if (step.result?.result === 'destroy') auto.destroyed++;
+    if (step.result?.swap) auto.replaced++;
     if (step.stop) { stopMsg = step.stop; break; }
     // 빠른 배속에서도 새 무기 발견은 놓치지 않게 알림
     const next = step.result?.next;
@@ -673,6 +680,7 @@ $('autoSheet').querySelector('.sheet').addEventListener('click', (e) => {
 $('autoSheet').querySelector('.sheet').addEventListener('change', (e) => {
   if (e.target.dataset.aitem) s.auto.items[e.target.dataset.aitem] = e.target.checked;
   if (e.target.id === 'smartItems') s.auto.smart = e.target.checked;
+  if (e.target.id === 'swapStronger') { s.auto.swap = e.target.checked; renderForge(); }
   persist(true);
 });
 

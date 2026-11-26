@@ -6,7 +6,7 @@ import {
 import { load, save, reset, newState } from './state.js';
 import {
   currentChances, sellPrice, canEnhance, enhance, sell, buy, goldPrice, claim, claimAll, autoStep, priceBonus,
-  costNow, upLv, checkAchievements, buyUpgrade, canRebirth, rebirth, offlineReward, offlineHours, maybeStartEvent, currentEvent, openChest,
+  costNow, upLv, checkAchievements, itemFee, buyUpgrade, canRebirth, rebirth, offlineReward, offlineHours, maybeStartEvent, currentEvent, openChest,
   storeCurrent, sellStored, takeOut, storageCap, hunters, huntRate, huntTick, itemWorth, itemRate,
   canReplaceWeakest, weakestStored,
 } from './game.js';
@@ -89,11 +89,13 @@ function renderForge() {
 
   $('useItems').innerHTML = Object.entries(ITEMS).map(([id, it]) => {
     const n = s.items[id];
-    const on = s.use[id] && n > 0;
+    const on = s.use[id] && s.level < MAX_LEVEL;
     const worth = itemWorth(s, id);
     const tag = s.level >= MAX_LEVEL ? '' : worth ? '<i class="tag good">이득</i>' : '<i class="tag bad">손해</i>';
-    return `<button class="chip ${on ? 'on' : ''}" data-use="${id}" ${n > 0 && !auto ? '' : 'disabled'}>
-      <span>${it.icon}</span><em>${it.name}</em><b>${fmt(n)} ${tag}</b></button>`;
+    // 가진 아이템이 있으면 개수, 없으면 한 번 쓸 때 결제할 골드
+    const stock = n > 0 ? `${fmt(n)}개` : `💰${fmt(itemFee(s, id))}`;
+    return `<button class="chip ${on ? 'on' : ''}" data-use="${id}" ${!auto && s.level < MAX_LEVEL ? '' : 'disabled'}>
+      <span>${it.icon}</span><em>${it.name}</em><b>${stock} ${tag}</b></button>`;
   }).join('');
 
   $('cost').textContent = max ? '-' : costNow(s) === 0 ? '무료 (골드 부족)' : `💰 ${fmt(costNow(s))}`;
@@ -372,16 +374,15 @@ $('storeList').addEventListener('click', (e) => {
 // ---------- 상점 ----------
 function renderShop() {
   renderHud();
-  $('shopSale').innerHTML = currentEvent(s)?.id === 'peddler' ? '🧳 떠돌이 상인 방문 중! 골드 가격 <b>50% 할인</b>' : '';
+  $('shopSale').innerHTML = currentEvent(s)?.id === 'peddler' ? '🧳 떠돌이 상인 방문 중! 아이템 골드 결제 <b>50% 할인</b>' : '';
   $('shopList').innerHTML = Object.entries(ITEMS).map(([id, it]) => {
-    const gp = goldPrice(s, id);
     return `<div class="card">
       <div class="ic">${it.icon}</div>
-      <div class="info"><b>${it.name} <small>보유 ${fmt(s.items[id])}</small></b><span>${it.desc}</span></div>
+      <div class="info"><b>${it.name} <small>보유 ${fmt(s.items[id])}</small></b><span>${it.desc}</span>
+        <span class="rw">골드 결제: 강화 비용 × ${it.fee} (지금 💰${fmt(itemFee(s, id))})</span></div>
       <div class="buy">
-        <button class="btn small" data-buy="${id}" data-cur="gold" data-n="1" ${s.gold >= gp ? '' : 'disabled'}>💰 ${fmt(gp)}</button>
         <button class="btn small alt" data-buy="${id}" data-cur="frag" data-n="1" ${s.fragments >= it.frag ? '' : 'disabled'}>🔩 ${it.frag}</button>
-        <button class="btn small ghost" data-buy="${id}" data-cur="gold" data-n="10" ${s.gold >= gp * 10 ? '' : 'disabled'}>10개</button>
+        <button class="btn small ghost" data-buy="${id}" data-cur="frag" data-n="10" ${s.fragments >= it.frag * 10 ? '' : 'disabled'}>🔩 10개</button>
       </div></div>`;
   }).join('');
 }
@@ -679,8 +680,7 @@ $('useItems').addEventListener('click', (e) => {
   const b = e.target.closest('[data-use]');
   if (!b || auto) return;
   const id = b.dataset.use;
-  if (s.items[id] <= 0) return;
-  s.use[id] = !s.use[id];
+  s.use[id] = !s.use[id]; // 가진 게 없어도 켜 두면 쓸 때 골드 결제
   persist(true);
   renderForge();
 });

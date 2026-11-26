@@ -1,6 +1,6 @@
 // 게임 규칙: 강화 · 판매 · 상점 · 업적 · 자동 강화
 import {
-  MAX_LEVEL, chances, enhanceCost, basePrice, fragmentsOnDestroy, ITEMS, itemGoldPrice,
+  MAX_LEVEL, chances, enhanceCost, basePrice, fragmentsOnDestroy, ITEMS,
   DEX_BONUS, WEAPON_DEX_BONUS, ACHIEVEMENTS, weaponOf, rollWeapon,
   UPGRADES, upgradeOf, upgradeCost, rebirthStones, REBIRTH_MIN, OFFLINE_BASE_HOURS, offlinePerHour, EVENTS, eventOf,
   STORAGE_BASE, attackOf, GOLD_PER_ATK,
@@ -24,11 +24,25 @@ export const costMul = (s) => (1 - upLv(s, 'furnace') * upgradeOf('furnace').per
 export const freeHammer = (s) => s.level === 0 && s.gold < Math.floor(enhanceCost(0) * costMul(s));
 export const costNow = (s, lv = s.level) => (lv === s.level && freeHammer(s) ? 0 : Math.max(1, Math.floor(enhanceCost(lv) * costMul(s))));
 
-export const activeItems = (s) => ({
-  guard: s.use.guard && s.items.guard > 0,
-  lucky: s.use.lucky && s.items.lucky > 0,
-  bless: s.use.bless && s.items.bless > 0,
-});
+// 아이템 골드 결제 금액 (가진 아이템이 없을 때 한 번 쓸 때마다)
+export const itemFee = (s, id, lv = s.level) => Math.max(1, Math.floor(ITEMS[id].fee * enhanceCost(lv) * costMul(s) * (eventActive(s, 'peddler') ? 0.5 : 1)));
+export const goldPrice = itemFee;
+
+// 이번 강화에 실제로 쓰이는 아이템: 켜져 있고, 가진 게 있거나 (강화 비용을 빼고) 결제할 골드가 있을 때
+export function activeItems(s) {
+  const out = {};
+  let left = s.gold - costNow(s);
+  const risky = chances(s.level, {}, s.weapon, mods(s)).destroy > 0;
+  for (const id of ['guard', 'lucky', 'bless']) {
+    // 파괴 확률 0%일 때 방지권은 쓰지 않음 (효과 없이 아이템 · 골드만 나가지 않게)
+    if (!s.use[id] || s.level >= MAX_LEVEL || (id === 'guard' && !risky)) { out[id] = false; continue; }
+    if (s.items[id] > 0) { out[id] = true; continue; }
+    const fee = itemFee(s, id);
+    out[id] = left >= fee;
+    if (out[id]) left -= fee;
+  }
+  return out;
+}
 
 export const currentChances = (s) => chances(s.level, activeItems(s), s.weapon, mods(s));
 export const priceBonus = (s) => (1 + s.dex.length * DEX_BONUS + s.weaponsFound.length * WEAPON_DEX_BONUS
@@ -61,9 +75,14 @@ export function enhance(s, rand = Math.random) {
   const ch = chances(from, used, wid, m);
   const raw = chances(from, { ...used, guard: false }, wid, m); // 방지권이 막았는지 판단용
 
+  const fees = {};
+  for (const id of Object.keys(used)) if (used[id] && s.items[id] <= 0) fees[id] = itemFee(s, id);
   s.gold -= costNow(s);
-  for (const id of Object.keys(used)) if (used[id]) { s.items[id]--; s.stats.itemsUsed++; }
-  for (const id of Object.keys(s.use)) if (s.items[id] <= 0) s.use[id] = false; // 다 쓴 아이템은 자동 해제
+  for (const id of Object.keys(used)) {
+    if (!used[id]) continue;
+    if (s.items[id] > 0) s.items[id]--; else s.gold -= fees[id]; // 가진 아이템 먼저, 없으면 골드 결제
+    s.stats.itemsUsed++;
+  }
   const st = s.stats;
   st.tries++;
 
@@ -192,19 +211,42 @@ export function takeOut(s, uid) {
 }
 
 // ---------- 아이템이 이득인지 판단 ----------
-// guard: 파괴 확률 × 지금 무기 가치 > 방지권 가격
-// lucky: 부적으로 줄어드는 강화 비용 > 부적 가격
-// bless: 대성공(한 단계 건너뜀)으로 아끼는 비용 > 주문서 가격
+// 다시 올리는 비용: +0에서 각 단계까지 올리는 데 드는 평균 골드 (단계마다 방지권을 쓸지 말지 더 싼 쪽을 고른다고 계산)
+// C(l) = min( (강화비 + 파괴확률 × E(l)) / 성공확률,  (강화비 + 방지권값) / 성공확률 ),  E(l+1) = E(l) + C(l)
+let rebuildCache = { key: '', E: [] };
+export function rebuildCost(s, lv) {
+  const m = mods(s);
+  const cm = costMul(s);
+  const gm = ITEMS.guard.fee * (eventActive(s, 'peddler') ? 0.5 : 1);
+  const key = `${s.weapon}|${gm}|${cm}|${m.succ}|${m.destroy}|${m.great}`;
+  if (rebuildCache.key !== key) {
+    const E = [0];
+    for (let l = 0; l < MAX_LEVEL; l++) {
+      const ch = chances(l, {}, s.weapon, m);
+      const p = (ch.great + ch.success) / 100;
+      const d = ch.destroy / 100;
+      const c = Math.max(1, Math.floor(enhanceCost(l) * cm));
+      const noGuard = (c + d * E[l]) / p;
+      const withGuard = d > 0 ? (c + c * gm) / p : Infinity;
+      E.push(E[l] + Math.min(noGuard, withGuard));
+    }
+    rebuildCache = { key, E };
+  }
+  return rebuildCache.E[Math.min(lv, MAX_LEVEL)];
+}
+
+// guard: 파괴 확률 × (부서지면 다시 올리는 비용) > 방지권 가격
+// lucky: 부적으로 줄어드는 시도 비용 > 부적 가격 / bless: 대성공으로 아끼는 비용 > 주문서 가격
 export function itemWorth(s, id) {
   if (s.level >= MAX_LEVEL) return false;
   const m = mods(s);
   const base = chances(s.level, {}, s.weapon, m);
   const price = goldPrice(s, id);
-  const risk = (base.destroy / 100) * sellPrice(s); // 이번 시도에서 파괴로 잃을 평균 가치
+  const risk = (base.destroy / 100) * rebuildCost(s, s.level); // 이번 시도에서 파괴로 잃을 평균 비용
   if (id === 'guard') return base.destroy > 0 && risk > price;
   const p = (base.great + base.success) / 100;
   if (p <= 0) return false;
-  // 한 번 시도할 때 드는 실제 비용 = 강화 비용 + (방지권 값 또는 파괴 위험) → 부적·주문서로 시도가 줄면 이만큼 아낌
+  // 한 번 시도할 때 드는 실제 비용 = 강화 비용 + (방지권 값 또는 파괴 위험 중 싼 쪽) → 부적·주문서로 시도가 줄면 이만큼 아낌
   const cost = Math.max(1, costNow(s)) + Math.min(risk, goldPrice(s, 'guard'));
   if (id === 'lucky') {
     const c = chances(s.level, { lucky: true }, s.weapon, m);
@@ -214,18 +256,12 @@ export function itemWorth(s, id) {
   return price < ((c.great - base.great) / 100) * (cost / p);
 }
 
-export const goldPrice = (s, id) => Math.floor(itemGoldPrice(id, s.best) * (eventActive(s, 'peddler') ? 0.5 : 1));
-
-export function buy(s, id, currency) {
-  if (currency === 'gold') {
-    const p = goldPrice(s, id);
-    if (s.gold < p) return false;
-    s.gold -= p;
-  } else {
-    const p = ITEMS[id].frag;
-    if (s.fragments < p) return false;
-    s.fragments -= p;
-  }
+// 조각으로 아이템 교환 (골드는 쓸 때 바로 결제하므로 미리 살 필요 없음)
+export function buy(s, id, currency = 'frag') {
+  if (currency !== 'frag') return false;
+  const p = ITEMS[id].frag;
+  if (s.fragments < p) return false;
+  s.fragments -= p;
   s.items[id]++;
   return true;
 }
@@ -278,10 +314,8 @@ export function autoStep(s) {
     let want = a.items[id];
     if (want && id === 'guard' && !risky) want = false;
     else if (want && a.smart && !(pushing && id === 'guard') && !itemWorth(s, id)) want = false;
-    if (want && s.items[id] <= 0) {
-      if (!buy(s, id, 'frag') && s.gold >= goldPrice(s, id) + costNow(s)) buy(s, id, 'gold');
-    }
-    s.use[id] = want && s.items[id] > 0;
+    if (want && s.items[id] <= 0) buy(s, id, 'frag'); // 조각이 있으면 조각으로, 없으면 쓸 때 골드 결제
+    s.use[id] = want;
   }
   if (!canEnhance(s)) {
     if (s.level < MAX_LEVEL && a.onTarget !== 'stop' && s.level > 0 && s.gold < costNow(s)) {

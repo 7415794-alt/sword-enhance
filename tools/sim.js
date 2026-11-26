@@ -12,9 +12,9 @@ function useItems(s, guardFrom, luckyBelow) {
   const wantLucky = ch.success + ch.great < luckyBelow;
   for (const [id, want] of [['guard', wantGuard], ['lucky', wantLucky]]) {
     if (want && s.items[id] === 0) {
-      if (!buy(s, id, 'frag') && s.gold >= goldPrice(s, id) + enhanceCost(s.level)) buy(s, id, 'gold');
+      buy(s, id, 'frag');
     }
-    s.use[id] = want && s.items[id] > 0;
+    s.use[id] = want;
   }
 }
 
@@ -46,7 +46,7 @@ const marks = {};
 const goals = [10, 20, 30, 50, 80, 100, 150, 200, 250, 300];
 let pushing = false;
 while (t < 2e6 && s.best < MAX_LEVEL) {
-  if (s.level === 0) pushing = s.gold >= goldPrice(s, 'guard') * 40;
+  if (s.level === 0) pushing = s.gold >= goldPrice(s, 'guard', s.best) * 40;
   const target = pushing ? Math.min(MAX_LEVEL, s.best + 2) : Math.min(25, s.best + 2);
   if (pushing) useItems(s, 20, 30); else { s.use.guard = false; s.use.lucky = false; }
   if (s.gold < enhanceCost(s.level)) { if (s.level > 0) sell(s); else s.gold += 100; }
@@ -68,7 +68,7 @@ const m3 = {};
 let n = 0, stops = 0;
 while (n < 2e6 && a.best < MAX_LEVEL) {
   // 방지권 40개 살 돈이 있으면 기록 도전, 아니면 +25에서 판매하며 모으기
-  if (a.level === 0) a.auto.target = a.gold >= goldPrice(a, 'guard') * 40 ? Math.min(MAX_LEVEL, a.best + 2) : Math.min(25, a.best + 2);
+  if (a.level === 0) a.auto.target = a.gold >= goldPrice(a, 'guard', a.best) * 40 ? Math.min(MAX_LEVEL, a.best + 2) : Math.min(25, a.best + 2);
   if (process.env.UPG && a.level === 0) {
     // 여유 골드가 업그레이드 가격의 5배 이상이면 가장 싼 업그레이드 구매
     const ups = UPGRADES.filter((u) => (a.upgrades[u.id] || 0) < u.max).map((u) => [u, upgradeCost(u, a.upgrades[u.id] || 0)]).sort((x, y) => x[1] - y[1]);

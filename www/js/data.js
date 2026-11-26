@@ -1,5 +1,5 @@
 // 게임 데이터 · 밸런스 수치
-export const VERSION = '0.6.4';
+export const VERSION = '0.7.0';
 export const MAX_LEVEL = 300;
 
 // 현재 단계(L)에서 강화를 시도할 때의 확률 (%)
@@ -111,13 +111,13 @@ const PRICES = (() => {
 })();
 export const basePrice = (lv) => PRICES[lv];
 
-// 보조 아이템. 골드 가격 = 기본가 × 1.07^(최고 기록)
+// 보조 아이템. 가진 아이템(업적 · 보물 상자 · 조각으로 얻음)을 먼저 쓰고, 없으면 쓸 때마다 골드로 결제
+// 골드 결제 금액 = 지금 단계 강화 비용 × fee → 어느 단계를 파밍해도 비용이 맞음 (판매가 공식도 방지권 = 강화 비용 × 3 기준)
 export const ITEMS = {
-  guard: { name: '파괴 방지권', icon: '🛡️', desc: '파괴 결과가 나오면 유지로 바뀝니다', gold: 500, frag: 12 },
-  lucky: { name: '행운의 부적', icon: '🍀', desc: '성공 확률 +10%p (최대 2배)', gold: 300, frag: 4 },
-  bless: { name: '축복 주문서', icon: '✨', desc: '대성공 확률 3배', gold: 400, frag: 6 },
+  guard: { name: '파괴 방지권', icon: '🛡️', desc: '파괴 결과가 나오면 유지로 바뀝니다', fee: 3, frag: 12 },
+  lucky: { name: '행운의 부적', icon: '🍀', desc: '성공 확률 +10%p (최대 2배)', fee: 2, frag: 4 },
+  bless: { name: '축복 주문서', icon: '✨', desc: '대성공 확률 3배', fee: 1.5, frag: 6 },
 };
-export const itemGoldPrice = (id, best) => Math.floor(ITEMS[id].gold * Math.pow(1.07, best));
 
 // 도감 보너스: 등록된 단계 하나당 판매가 +1%, 발견한 무기 하나당 +2%
 export const DEX_BONUS = 0.01;

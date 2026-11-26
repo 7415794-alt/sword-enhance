@@ -59,8 +59,8 @@
 
       <!-- 대장간 (상점 · 업그레이드 · 환생) -->
       <section class="view" data-view="smith">
-        <h2>보조 아이템 상점</h2>
-        <p class="hint">골드 가격은 최고 강화 기록이 오를수록 비싸집니다. 검 조각은 무기가 파괴될 때 얻습니다.</p>
+        <h2>보조 아이템</h2>
+        <p class="hint">강화 화면에서 아이템을 켜 두면 <b>가진 아이템을 먼저 쓰고</b>, 없으면 쓸 때마다 <b>지금 단계 강화 비용에 비례한 골드</b>를 내요. 미리 살 필요가 없어요. 검 조각(무기가 파괴될 때 얻음)으로는 아이템을 교환해 둘 수 있어요.</p>
         <div id="shopSale" class="sale-note"></div>
         <div id="shopList" class="list"></div>
         <h2>대장간 업그레이드</h2>
@@ -155,7 +155,7 @@
           <div class="seg-btns"><button data-opt="onDestroy:continue">새 무기로 계속</button><button data-opt="onDestroy:stop">멈춤</button></div>
         </div>
         <div class="field">
-          <label>사용할 아이템 <small>(떨어지면 조각 → 골드로 자동 구매)</small></label>
+          <label>사용할 아이템 <small>(가진 것 → 조각 교환 → 골드 결제 순)</small></label>
           <div id="autoItems" class="checks"></div>
         </div>
         <div class="sheet-actions">

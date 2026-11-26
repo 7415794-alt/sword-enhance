@@ -621,5 +621,19 @@ checkOffline();
 renderForge();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !window.Capacitor) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  // 새 버전이 설치되면 저장 후 한 번 새로고침해서 바로 적용
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloaded) return;
+    reloaded = true;
+    save(s);
+    location.reload();
+  });
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+    .then((reg) => {
+      reg.update();
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update(); });
+    })
+    .catch(() => {});
 }

@@ -40,6 +40,7 @@
         <div class="odds" id="odds"></div>
 
         <div class="items" id="useItems"></div>
+        <label class="smart-toggle"><input type="checkbox" id="smartToggle"><span>⚖️ 이득일 때만 사용</span><small>켜 둔 아이템도 손해면 안 써요 · 다 쓰면 🔩조각 → 💰골드 순</small></label>
 
         <div class="actions">
           <button class="btn sell" id="sellBtn"><span>판매</span><small id="sellPrice"></small></button>
@@ -155,7 +156,7 @@
           <div class="seg-btns"><button data-opt="onDestroy:continue">새 무기로 계속</button><button data-opt="onDestroy:stop">멈춤</button></div>
         </div>
         <div class="field">
-          <label>사용할 아이템 <small>(가진 것 → 조각 교환 → 골드 결제 순)</small></label>
+          <label>사용할 아이템 <small>(가진 것 → 🔩조각 → 💰골드 순으로 자동 결제)</small></label>
           <div id="autoItems" class="checks"></div>
         </div>
         <div class="sheet-actions">

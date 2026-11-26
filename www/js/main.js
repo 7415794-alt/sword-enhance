@@ -6,7 +6,7 @@ import {
 import { load, save, reset, newState } from './state.js';
 import {
   currentChances, sellPrice, canEnhance, enhance, sell, buy, goldPrice, claim, claimAll, autoStep, priceBonus,
-  costNow, upLv, checkAchievements, itemFee, buyUpgrade, canRebirth, rebirth, offlineReward, offlineHours, maybeStartEvent, currentEvent, openChest,
+  costNow, upLv, checkAchievements, itemFee, paySource, activeItems, buyUpgrade, canRebirth, rebirth, offlineReward, offlineHours, maybeStartEvent, currentEvent, openChest,
   storeCurrent, sellStored, takeOut, storageCap, hunters, huntRate, huntTick, itemWorth, itemRate,
   canReplaceWeakest, weakestStored,
 } from './game.js';
@@ -87,14 +87,18 @@ function renderForge() {
     : `<div class="bar">${seg('great', ch.great)}${seg('success', ch.success)}${seg('keep', ch.keep)}${seg('destroy', ch.destroy)}</div>
        <div class="odd-grid">${row('great', '대성공 +2', ch.great)}${row('success', '성공 +1', ch.success)}${row('keep', '유지', ch.keep)}${row('destroy', '파괴', ch.destroy)}</div>`;
 
+  const act = activeItems(s);
+  $('smartToggle').checked = !!s.auto.smart;
   $('useItems').innerHTML = Object.entries(ITEMS).map(([id, it]) => {
-    const n = s.items[id];
     const on = s.use[id] && s.level < MAX_LEVEL;
     const worth = itemWorth(s, id);
     const tag = s.level >= MAX_LEVEL ? '' : worth ? '<i class="tag good">이득</i>' : '<i class="tag bad">손해</i>';
-    // 가진 아이템이 있으면 개수, 없으면 한 번 쓸 때 결제할 골드
-    const stock = n > 0 ? `${fmt(n)}개` : `💰${fmt(itemFee(s, id))}`;
-    return `<button class="chip ${on ? 'on' : ''}" data-use="${id}" ${!auto && s.level < MAX_LEVEL ? '' : 'disabled'}>
+    // 다음에 쓸 때 낼 것: 가진 아이템 개수 → 검 조각 → 골드
+    const p = paySource(s, id);
+    const stock = p.by === 'item' ? `${fmt(p.n)}개` : p.by === 'frag' ? `🔩${p.n}` : `💰${fmt(p.n)}`;
+    // 켜 두었지만 이번 강화에 실제로 안 쓰이면(손해 · 파괴 0% · 골드 부족) 흐리게
+    const idle = on && !act[id] ? ' idle' : '';
+    return `<button class="chip ${on ? 'on' : ''}${idle}" data-use="${id}" ${!auto && s.level < MAX_LEVEL ? '' : 'disabled'}>
       <span>${it.icon}</span><em>${it.name}</em><b>${stock} ${tag}</b></button>`;
   }).join('');
 
@@ -224,7 +228,7 @@ function renderAutoSheet() {
     + `<label class="check"><input type="checkbox" id="swapStronger" ${a.swap ? 'checked' : ''}>
       <span>🔄 강해지면 보관함 무기와 바로 교체<br><small class="note">보관함이 가득 찼을 때, 강화 중인 무기의 공격력이 가장 약한 보관 무기보다 높아지면 즉시 맞바꾸고 약한 무기를 이어서 강화해요. 직접 강화에도 적용돼요.</small></span></label>`
     + `<label class="check"><input type="checkbox" id="smartItems" ${a.smart ? 'checked' : ''}>
-      <span>이득일 때만 사용 (추천)<br><small class="note">파밍 중에는 무기 가치보다 비싼 아이템은 안 써요. 기록 도전 중(목표 > 최고 기록)에는 방지권을 아끼지 않아요.</small></span></label>`;
+      <span>⚖️ 이득일 때만 사용 (추천)<br><small class="note">강화 화면의 스위치와 같은 설정이에요. 파밍 중에는 손해인 아이템은 안 써요. 기록 도전 중(목표 > 최고 기록)에는 방지권을 아끼지 않아요. 아이템을 다 쓰면 🔩조각 → 💰골드 순으로 결제해요.</small></span></label>`;
 }
 
 function startAuto() {
@@ -682,6 +686,13 @@ $('autoSheet').querySelector('.sheet').addEventListener('change', (e) => {
   if (e.target.id === 'smartItems') s.auto.smart = e.target.checked;
   if (e.target.id === 'swapStronger') { s.auto.swap = e.target.checked; renderForge(); }
   persist(true);
+});
+
+$('smartToggle').addEventListener('change', (e) => {
+  s.auto.smart = e.target.checked; // 직접 강화 · 자동 강화 공용
+  toast(s.auto.smart ? '⚖️ 이득일 때만 아이템을 써요' : '켜 둔 아이템은 항상 써요');
+  persist(true);
+  renderForge();
 });
 
 $('useItems').addEventListener('click', (e) => {

@@ -29,19 +29,33 @@ export const itemFee = (s, id, lv = s.level) => Math.max(1, Math.floor(ITEMS[id]
 export const goldPrice = itemFee;
 
 // 이번 강화에 실제로 쓰이는 아이템: 켜져 있고, 가진 게 있거나 (강화 비용을 빼고) 결제할 골드가 있을 때
-export function activeItems(s) {
+// 어떻게 낼지: 가진 아이템(item) → 검 조각(frag) → 골드(gold) 순서
+// smart: '이득일 때만 사용'이 켜져 있으면 손해인 아이템은 켜 두어도 쓰지 않음 (자동 강화는 직접 판단하므로 끔)
+export function activeItems(s, smart = s.auto.smart) {
   const out = {};
+  const pay = {};
   let left = s.gold - costNow(s);
+  let frags = s.fragments;
   const risky = chances(s.level, {}, s.weapon, mods(s)).destroy > 0;
   for (const id of ['guard', 'lucky', 'bless']) {
+    out[id] = false;
     // 파괴 확률 0%일 때 방지권은 쓰지 않음 (효과 없이 아이템 · 골드만 나가지 않게)
-    if (!s.use[id] || s.level >= MAX_LEVEL || (id === 'guard' && !risky)) { out[id] = false; continue; }
-    if (s.items[id] > 0) { out[id] = true; continue; }
+    if (!s.use[id] || s.level >= MAX_LEVEL || (id === 'guard' && !risky)) continue;
+    if (smart && !itemWorth(s, id)) continue;
+    if (s.items[id] > 0) { out[id] = true; pay[id] = 'item'; continue; }
+    if (frags >= ITEMS[id].frag) { out[id] = true; pay[id] = 'frag'; frags -= ITEMS[id].frag; continue; }
     const fee = itemFee(s, id);
-    out[id] = left >= fee;
-    if (out[id]) left -= fee;
+    if (left >= fee) { out[id] = true; pay[id] = 'gold'; left -= fee; }
   }
+  Object.defineProperty(out, 'pay', { value: pay, enumerable: false });
   return out;
+}
+
+// 아이템 칸에 보여줄 결제 수단
+export function paySource(s, id) {
+  if (s.items[id] > 0) return { by: 'item', n: s.items[id] };
+  if (s.fragments >= ITEMS[id].frag) return { by: 'frag', n: ITEMS[id].frag };
+  return { by: 'gold', n: itemFee(s, id) };
 }
 
 export const currentChances = (s) => chances(s.level, activeItems(s), s.weapon, mods(s));
@@ -66,21 +80,24 @@ function newWeapon(s) {
 }
 
 // 강화 시도. 결과: { result: 'great'|'success'|'keep'|'destroy', from, to, saved, fragments, next }
-export function enhance(s, rand = Math.random) {
+export function enhance(s, rand = Math.random, fromAuto = false) {
   if (!canEnhance(s)) return null;
   const from = s.level;
   const wid = s.weapon;
-  const used = activeItems(s);
+  const used = activeItems(s, fromAuto ? false : s.auto.smart);
   const m = mods(s);
   const ch = chances(from, used, wid, m);
   const raw = chances(from, { ...used, guard: false }, wid, m); // 방지권이 막았는지 판단용
 
   const fees = {};
-  for (const id of Object.keys(used)) if (used[id] && s.items[id] <= 0) fees[id] = itemFee(s, id);
+  for (const id of Object.keys(used)) if (used.pay[id] === 'gold') fees[id] = itemFee(s, id);
   s.gold -= costNow(s);
   for (const id of Object.keys(used)) {
     if (!used[id]) continue;
-    if (s.items[id] > 0) s.items[id]--; else s.gold -= fees[id]; // 가진 아이템 먼저, 없으면 골드 결제
+    // 가진 아이템 먼저, 다 쓰면 검 조각, 조각도 없으면 골드 결제
+    if (used.pay[id] === 'item') s.items[id]--;
+    else if (used.pay[id] === 'frag') { s.fragments -= ITEMS[id].frag; s.stats.fragItems = (s.stats.fragItems || 0) + 1; }
+    else s.gold -= fees[id];
     s.stats.itemsUsed++;
   }
   const st = s.stats;
@@ -331,7 +348,7 @@ export function autoStep(s) {
     let want = a.items[id];
     if (want && id === 'guard' && !risky) want = false;
     else if (want && a.smart && !(pushing && id === 'guard') && !itemWorth(s, id)) want = false;
-    if (want && s.items[id] <= 0) buy(s, id, 'frag'); // 조각이 있으면 조각으로, 없으면 쓸 때 골드 결제
+    // 결제는 강화할 때 가진 아이템 → 조각 → 골드 순서로 자동 처리
     s.use[id] = want;
   }
   if (!canEnhance(s)) {
@@ -340,7 +357,7 @@ export function autoStep(s) {
     }
     return { action: 'stop', reason: '골드가 부족합니다' };
   }
-  const r = enhance(s);
+  const r = enhance(s, Math.random, true);
   s.stats.autoTries++;
   if (r.result === 'destroy' && a.onDestroy === 'stop') return { action: 'enhance', result: r, stop: '무기가 파괴되어 멈췄습니다' };
   return { action: 'enhance', result: r };

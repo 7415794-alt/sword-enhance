@@ -1,0 +1,59 @@
+# 검 강화하기
+
+검을 강화하고, 강화한 검을 팔아 골드를 버는 모바일 게임입니다. 웹(HTML/JS)으로 만들고 Capacitor로 감싸 안드로이드 앱으로 빌드합니다.
+
+## 게임 규칙
+
+- **강화**: 골드를 내고 강화를 시도합니다. 결과는 4가지입니다.
+  | 결과 | 효과 |
+  |---|---|
+  | 대성공 | +2단계 |
+  | 성공 | +1단계 |
+  | 유지 | 변화 없음 |
+  | 파괴 | 검이 부서지고 +0 검으로 돌아감 · 검 조각 획득 |
+- 단계가 오를수록 성공 확률은 내려가고 파괴 확률은 올라갑니다. 파괴는 +5부터 나오고, 최대 단계는 +30입니다.
+- **판매**: 현재 검을 팔아 골드를 받고 새 +0 검을 받습니다. 판매가는 단계마다 약 1.55배씩 오릅니다.
+- **보조 아이템**: 강화 화면에서 켜 두면 다음 강화 1번에 1개씩 쓰입니다.
+  - 🛡️ 파괴 방지권: 파괴 결과가 나오면 유지로 바뀜
+  - 🍀 행운의 부적: 성공 확률 +10%p
+  - ✨ 축복 주문서: 대성공 확률 3배
+  - 상점에서 골드(최고 기록에 따라 가격 상승)나 검 조각으로 구매
+- **도감**: 처음 도달한 단계가 등록되고, 1칸당 판매가 +3%
+- **업적**: 20종. 달성하면 골드·아이템 보상
+- **기록**: 이 기기의 최고 판매 TOP 10과 통계 (온라인 랭킹은 서버가 필요해 아직 없음)
+
+진행 상황은 기기에 자동 저장됩니다 (localStorage).
+
+## 구조
+
+```
+www/                 게임 본체 (이 폴더가 앱에 들어감)
+  index.html
+  css/style.css
+  js/data.js         밸런스 수치 · 확률표 · 아이템 · 업적 (VERSION 도 여기)
+  js/game.js         강화 · 판매 · 구매 · 업적 규칙
+  js/state.js        저장 · 불러오기
+  js/main.js         화면 렌더링 · 이벤트
+  js/sword.js        검 그림 (SVG)
+  js/sound.js        효과음
+tools/sim.js         밸런스 시뮬레이터 (npm run sim)
+tools/make-icons.js  icon.svg → PNG 아이콘 (npm run icons)
+tools/android/       APK 서명 키 · 아이콘 배경
+.github/workflows/   안드로이드 APK 빌드 · GitHub Pages 배포
+```
+
+## 실행
+
+```bash
+npm start            # http://localhost:8080 에서 브라우저로 실행
+npm run sim          # 목표 단계별 평균 수익 시뮬레이션
+```
+
+## 안드로이드 앱
+
+`main` 브랜치에 `www/` 변경이 푸시되면 GitHub Actions가 APK를 빌드해 `android-latest` 릴리스에 올립니다.
+
+다운로드: `https://github.com/7415794-alt/sword-enhance/releases/download/android-latest/sword-enhance.apk`
+
+서명 키가 고정되어 있어 새 버전을 받아 덮어 설치해도 저장 데이터가 유지됩니다.
+버전을 올릴 때는 `www/js/data.js`의 `VERSION`과 `www/sw.js`의 `CACHE`를 함께 바꿉니다.

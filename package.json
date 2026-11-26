@@ -1,0 +1,15 @@
+{
+  "name": "sword-enhance",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "검 강화하기 - 검을 강화하고 팔아서 돈을 버는 모바일 게임 (Capacitor)",
+  "scripts": {
+    "start": "npx --yes http-server www -p 8080 -c-1",
+    "sim": "node tools/sim.js",
+    "icons": "node tools/make-icons.js",
+    "cap:init": "npm i -D @capacitor/cli@6.2.0 @capacitor/core@6.2.0 @capacitor/android@6.2.0",
+    "cap:android": "npx cap add android && npx cap sync android && npx cap open android",
+    "cap:sync": "npx cap sync"
+  }
+}

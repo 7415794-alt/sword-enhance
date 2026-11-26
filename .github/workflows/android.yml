@@ -1,0 +1,145 @@
+name: Build Android APK
+
+# www/ 를 Capacitor로 감싸 안드로이드 앱(APK)을 만들고, 'android-latest' 릴리스에 올림
+# 다운로드: https://github.com/<저장소>/releases/download/android-latest/sword-enhance.apk
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'www/**'
+      - 'capacitor.config.json'
+      - 'tools/android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # Android SDK는 ubuntu-latest 러너에 기본 설치되어 있음 (ANDROID_HOME)
+
+      - name: Capacitor 설치 · 안드로이드 프로젝트 생성
+        run: |
+          npm install --no-save @capacitor/cli@6.2.0 @capacitor/core@6.2.0 @capacitor/android@6.2.0
+          npx cap add android
+
+      - name: 앱 아이콘 생성
+        continue-on-error: true
+        run: |
+          mkdir -p assets
+          cp www/icons/icon-512.png assets/icon-only.png
+          cp www/icons/icon-512.png assets/icon-foreground.png
+          cp tools/android/icon-background.png assets/icon-background.png
+          npx --yes @capacitor/assets@3.0.5 generate --android --iconBackgroundColor '#14110f' --iconBackgroundColorDark '#14110f' --splashBackgroundColor '#14110f' --splashBackgroundColorDark '#14110f'
+
+      - name: 아이콘 점검 (빠진 리소스가 있으면 기본 아이콘으로)
+        run: |
+          R=android/app/src/main/res
+          if ! ls $R/mipmap-*/ic_launcher_background.* >/dev/null 2>&1 && ! grep -rq "ic_launcher_background" $R/values* ; then
+            rm -rf $R/mipmap-anydpi-v26
+            echo "::warning::적응형 아이콘 배경이 없어 기본 아이콘 구성으로 대체"
+          fi
+
+      - name: 버전 · 세로 화면 설정
+        run: |
+          VER=$(grep -oP "VERSION = '\K[^']+" www/js/data.js)
+          sed -i "s/versionCode 1$/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"$VER\"/" android/app/build.gradle
+          sed -i 's/android:name=".MainActivity"/android:name=".MainActivity" android:screenOrientation="portrait"/' android/app/src/main/AndroidManifest.xml
+          grep -n "versionCode\|versionName" android/app/build.gradle
+
+      - name: 고정 서명 키 지정 (빌드마다 같은 키 → 덮어 설치 가능)
+        run: |
+          cat >> android/app/build.gradle <<'GRADLE'
+
+          android {
+              signingConfigs {
+                  debug {
+                      storeFile file("${rootDir}/../tools/android/debug.keystore")
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
+              }
+              buildTypes {
+                  debug { signingConfig signingConfigs.debug }
+              }
+          }
+          GRADLE
+          tail -16 android/app/build.gradle
+
+      - name: 게임 중 화면 꺼짐 방지 (FLAG_KEEP_SCREEN_ON)
+        run: |
+          F=$(find android/app/src/main/java -name MainActivity.java | head -1)
+          PKG=$(grep -m1 '^package ' "$F")
+          cat > "$F" <<JAVA
+          $PKG
+
+          import android.os.Bundle;
+          import android.view.WindowManager;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+              }
+          }
+          JAVA
+          cat "$F"
+
+      - name: 웹 파일 반영
+        run: npx cap sync android
+
+      - name: APK 빌드 (고정 서명 키라서 새 버전을 덮어 설치 가능)
+        run: |
+          mkdir -p ~/.android
+          cp tools/android/debug.keystore ~/.android/debug.keystore
+          cd android
+          chmod +x gradlew
+          # 실패하면 원인을 주석(annotation)으로 남김 (로그인 없이 API로 확인 가능)
+          FAIL=0
+          ./gradlew assembleDebug --no-daemon --console=plain > ../build.log 2>&1 || FAIL=1
+          if [ "$FAIL" = 1 ]; then
+            grep -A 8 "What went wrong" ../build.log | head -10 | while IFS= read -r l; do echo "::error::$l"; done
+            grep -iE "error:|exception|failed" ../build.log | head -10 | while IFS= read -r l; do echo "::warning::$l"; done
+            tail -5 ../build.log | while IFS= read -r l; do echo "::notice::$l"; done
+            exit 1
+          fi
+          cp app/build/outputs/apk/debug/app-debug.apk ../sword-enhance.apk
+          # 서명 키 확인: 저장소의 고정 키(SHA1 8A:DB:7E...)가 아니면 실패 처리
+          keytool -printcert -jarfile ../sword-enhance.apk | tee ../cert.txt
+          if ! grep -q "8A:DB:7E:81:18:C2:23:13:64:1D:B8:CF:46:F0:02:7C:C4:9F:5D:8B" ../cert.txt; then
+            echo "::error::APK가 고정 서명 키로 서명되지 않음"
+            exit 1
+          fi
+
+      - name: 릴리스에 올리기
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          name: 검 강화하기 안드로이드 앱 (최신)
+          body: |
+            휴대폰에서 아래 sword-enhance.apk 를 받아 설치하세요.
+            처음 설치할 때 '출처를 알 수 없는 앱 설치'를 허용해야 할 수 있습니다.
+            새 버전은 같은 파일을 받아 덮어 설치하면 저장 데이터가 유지됩니다.
+          files: sword-enhance.apk
+          make_latest: true

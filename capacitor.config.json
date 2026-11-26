@@ -1,0 +1,7 @@
+{
+  "appId": "io.github.swordenhance",
+  "appName": "검 강화하기",
+  "webDir": "www",
+  "backgroundColor": "#14110f",
+  "android": { "allowMixedContent": false }
+}

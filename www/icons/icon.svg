@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="55%" r="65%"><stop offset="0" stop-color="#5a3a17"/><stop offset="1" stop-color="#14110f"/></radialGradient>
+    <linearGradient id="bl" x1="0" x2="1"><stop offset="0" stop-color="#ffd166"/><stop offset=".5" stop-color="#fff"/><stop offset="1" stop-color="#f59e0b"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <g transform="rotate(45 256 256)">
+    <path d="M256 60 L284 110 L284 330 L228 330 L228 110 Z" fill="url(#bl)" stroke="#b45309" stroke-width="4"/>
+    <rect x="176" y="326" width="160" height="26" rx="13" fill="#c9a227" stroke="#7a5c12" stroke-width="4"/>
+    <circle cx="256" cy="339" r="12" fill="#ff4d6d" stroke="#7a5c12" stroke-width="3"/>
+    <rect x="242" y="352" width="28" height="80" rx="6" fill="#5b3a29"/>
+    <circle cx="256" cy="444" r="18" fill="#c9a227" stroke="#7a5c12" stroke-width="4"/>
+  </g>
+  <text x="400" y="130" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="96" fill="#ffd166" stroke="#14110f" stroke-width="6" paint-order="stroke" text-anchor="middle">+</text>
+</svg>

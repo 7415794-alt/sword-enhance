@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#14110f">
+  <meta name="description" content="검 강화하기 - 검을 강화하고 팔아서 전설의 검을 완성하세요">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="검 강화하기">
+  <title>검 강화하기</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="hud">
+      <div class="res gold"><span>💰</span><b id="gold">0</b></div>
+      <div class="res frag" title="검 조각 (파괴 시 획득)"><span>🔩</span><b id="frag">0</b></div>
+      <div class="res best" title="최고 강화 기록"><span>🏆</span><b id="best">+0</b></div>
+    </header>
+
+    <main id="views">
+      <!-- 강화 -->
+      <section class="view active" data-view="forge">
+        <div class="anvil">
+          <div class="sword-name" id="swordName"></div>
+          <div class="sword-wrap" id="swordWrap"><div id="sword"></div><div class="fx" id="fx"></div></div>
+          <div class="result" id="result"></div>
+        </div>
+
+        <div class="odds" id="odds"></div>
+
+        <div class="items" id="useItems"></div>
+
+        <div class="actions">
+          <button class="btn sell" id="sellBtn"><span>판매</span><small id="sellPrice"></small></button>
+          <button class="btn enhance" id="enhanceBtn"><span>강화</span><small id="cost"></small></button>
+        </div>
+      </section>
+
+      <!-- 상점 -->
+      <section class="view" data-view="shop">
+        <h2>보조 아이템 상점</h2>
+        <p class="hint">골드 가격은 최고 강화 기록이 오를수록 비싸집니다. 검 조각은 검이 파괴될 때 얻습니다.</p>
+        <div id="shopList" class="list"></div>
+      </section>
+
+      <!-- 도감 -->
+      <section class="view" data-view="dex">
+        <h2>검 도감 <small id="dexCount"></small></h2>
+        <p class="hint">처음 도달한 강화 단계가 등록됩니다. 등록된 검 하나당 판매가 <b>+3%</b>.</p>
+        <div id="dexGrid" class="dex"></div>
+      </section>
+
+      <!-- 업적 -->
+      <section class="view" data-view="ach">
+        <h2>업적 <small id="achCount"></small></h2>
+        <div id="achList" class="list"></div>
+      </section>
+
+      <!-- 기록 · 랭킹 -->
+      <section class="view" data-view="rank">
+        <h2>최고 판매 랭킹</h2>
+        <p class="hint">이 기기에서 판매한 검 중 가장 비싼 10자루입니다.</p>
+        <ol id="rankList" class="rank"></ol>
+        <h2>통계</h2>
+        <div id="stats" class="stats"></div>
+        <div class="settings">
+          <button class="btn small" id="soundBtn"></button>
+          <button class="btn small danger" id="resetBtn">처음부터 다시</button>
+        </div>
+        <p class="ver" id="ver"></p>
+      </section>
+    </main>
+
+    <nav class="tabs" id="tabs">
+      <button data-tab="forge" class="active"><span>🔨</span>강화</button>
+      <button data-tab="shop"><span>🛒</span>상점</button>
+      <button data-tab="dex"><span>📖</span>도감</button>
+      <button data-tab="ach"><span>🏅</span>업적<i class="dot" id="achDot"></i></button>
+      <button data-tab="rank"><span>👑</span>기록</button>
+    </nav>
+
+    <div class="toast" id="toast"></div>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

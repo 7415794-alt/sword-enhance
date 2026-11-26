@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#14110f">
+  <title>검 강화하기</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body { margin: 0; height: 100%; background: #14110f; color: #f5efe6;
+      font-family: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", system-ui, sans-serif; }
+    .wrap { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; box-sizing: border-box; text-align: center; }
+    .logo { font-size: 64px; animation: bob 1s ease-in-out infinite alternate; }
+    @keyframes bob { to { transform: translateY(-8px) rotate(-8deg); } }
+    h1 { font-size: 22px; margin: 0; }
+    p { margin: 0; color: #a8998a; font-size: 14px; line-height: 1.6; }
+    button { font: inherit; font-weight: 800; font-size: 17px; border: 1px solid #fbbf24; border-radius: 12px; padding: 12px 28px;
+      background: linear-gradient(180deg, #f59e0b, #b45309); color: #1a0f00; }
+    .ghost { background: transparent; color: #a8998a; border-color: #43382d; font-size: 14px; padding: 8px 18px; }
+    .hide { display: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo">⚒️</div>
+    <h1>검 강화하기</h1>
+    <p id="msg">최신 버전을 불러오는 중...</p>
+    <button id="retry" class="hide">다시 시도</button>
+    <button id="anyway" class="ghost hide">저장된 버전으로 열기</button>
+  </div>
+  <script>
+    // 앱 실행기: 게임 본체는 웹사이트에서 불러옴 → 게임을 수정해 올리면 앱을 새로 받지 않아도 바로 업데이트
+    // 한 번 접속하면 웹사이트의 서비스 워커가 게임을 저장해 두므로 인터넷이 없어도 실행됨
+    var GAME_URL = 'https://stocksignals.kr/sword-enhance/';
+    var SAVE_KEY = 'sword-enhance-save';
+
+    // 이전 버전 앱(게임이 앱 안에 들어 있던 버전)의 저장 데이터를 웹 게임으로 넘김
+    function target() {
+      var url = GAME_URL;
+      try {
+        var raw = localStorage.getItem(SAVE_KEY);
+        if (raw) url += '#import=' + encodeURIComponent(btoa(unescape(encodeURIComponent(raw))));
+      } catch (e) { /* 저장 데이터 없음 */ }
+      return url;
+    }
+    function go() { location.replace(target()); }
+
+    function check() {
+      document.getElementById('msg').textContent = '최신 버전을 불러오는 중...';
+      document.getElementById('retry').classList.add('hide');
+      document.getElementById('anyway').classList.add('hide');
+      var done = false;
+      var timer = setTimeout(function () { if (!done) { done = true; offline(); } }, 6000);
+      fetch(GAME_URL + 'js/data.js?t=' + Date.now(), { mode: 'no-cors', cache: 'no-store' })
+        .then(function () { if (!done) { done = true; clearTimeout(timer); go(); } })
+        .catch(function () { if (!done) { done = true; clearTimeout(timer); offline(); } });
+    }
+    function offline() {
+      document.getElementById('msg').innerHTML = '인터넷에 연결할 수 없어요.<br>한 번이라도 접속했다면 저장된 버전으로 열 수 있어요.';
+      document.getElementById('retry').classList.remove('hide');
+      document.getElementById('anyway').classList.remove('hide');
+    }
+    document.getElementById('retry').onclick = check;
+    document.getElementById('anyway').onclick = go;
+    check();
+  </script>
+</body>
+</html>

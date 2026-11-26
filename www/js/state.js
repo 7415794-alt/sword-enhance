@@ -44,7 +44,24 @@ export function newState() {
   };
 }
 
+// 이전 버전 앱에서 넘어온 저장 데이터 (#import=...) 받기
+// 이 기기에 저장된 게 없거나, 넘어온 데이터가 더 많이 진행된 경우에만 덮어씀
+function importFromHash() {
+  try {
+    const m = location.hash.match(/#import=([^&]+)/);
+    if (!m) return;
+    history.replaceState(null, '', location.pathname + location.search);
+    const incoming = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1])))));
+    const current = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (localStorage.getItem(`${KEY}-imported`)) return; // 한 번만 옮김 (처음부터 다시 해도 되살아나지 않게)
+    localStorage.setItem(`${KEY}-imported`, '1');
+    const progress = (x) => (x && x.stats ? x.stats.tries || 0 : -1);
+    if (progress(incoming) > progress(current)) localStorage.setItem(KEY, JSON.stringify(incoming));
+  } catch { /* 잘못된 데이터는 무시 */ }
+}
+
 export function load() {
+  importFromHash();
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return newState();

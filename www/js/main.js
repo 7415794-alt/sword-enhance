@@ -620,7 +620,8 @@ setInterval(() => { if (!document.hidden) { s.lastSeen = Date.now(); save(s); } 
 checkOffline();
 renderForge();
 
-if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !window.Capacitor) {
+// 웹사이트(앱 실행기로 연 경우 포함)에서 서비스 워커 등록 → 오프라인 실행 · 자동 업데이트
+if ('serviceWorker' in navigator && location.protocol.startsWith('http') && location.hostname !== 'localhost') {
   // 새 버전이 설치되면 저장 후 한 번 새로고침해서 바로 적용
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

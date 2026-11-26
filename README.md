@@ -67,7 +67,8 @@
 ## 구조
 
 ```
-www/                 게임 본체 (이 폴더가 앱에 들어감)
+app-shell/           앱 실행기 (APK에 들어감, 웹사이트의 게임을 불러옴)
+www/                 게임 본체 (웹사이트로 배포)
   index.html
   css/style.css
   js/data.js         밸런스 수치 · 확률표 · 아이템 · 업적 (VERSION 도 여기)
@@ -94,9 +95,15 @@ npm run sim          # 목표 단계별 수익 · 처음부터 +300까지 걸리
 
 ## 안드로이드 앱
 
-`main` 브랜치에 `www/` 변경이 푸시되면 GitHub Actions가 APK를 빌드해 `android-latest` 릴리스에 올립니다.
+앱은 **실행기(`app-shell/`)** 만 들어 있고, 게임 본체는 웹사이트(https://stocksignals.kr/sword-enhance/)에서 불러옵니다.
+그래서 `www/`를 수정해 `main`에 푸시하면 **앱을 다시 받지 않아도** 다음 실행 때 자동으로 최신 버전이 됩니다.
+한 번 접속한 뒤에는 서비스 워커가 게임을 저장해 두어 인터넷 없이도 실행됩니다.
+이전 버전 앱(게임이 앱 안에 들어 있던 버전)의 저장 데이터는 첫 실행 때 자동으로 옮겨집니다.
+
+`app-shell/`, `capacitor.config.json`, 아이콘이 바뀔 때만 GitHub Actions가 APK를 다시 빌드해 `android-latest` 릴리스에 올립니다.
+웹사이트 주소가 바뀌면 `app-shell/index.html`의 `GAME_URL`과 `capacitor.config.json`의 `allowNavigation`을 함께 고쳐야 합니다.
 
 다운로드: `https://github.com/7415794-alt/sword-enhance/releases/download/android-latest/sword-enhance.apk`
 
-서명 키가 고정되어 있어 새 버전을 받아 덮어 설치해도 저장 데이터가 유지됩니다.
-버전을 올릴 때는 `www/js/data.js`의 `VERSION`과 `www/sw.js`의 `CACHE`를 함께 바꿉니다.
+서명 키가 고정되어 있어 새 APK를 덮어 설치해도 저장 데이터가 유지됩니다.
+게임 버전을 올릴 때는 `www/js/data.js`의 `VERSION`과 `www/sw.js`의 `CACHE`를 함께 바꿉니다.

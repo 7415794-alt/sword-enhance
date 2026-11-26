@@ -106,7 +106,9 @@ function renderForge() {
   $('storeInfo').textContent = full ? (canReplaceWeakest(s) ? '약한 무기와 교체' : '가득 참') : `${s.storage.length}/${cap}칸`;
   $('storeBtn').disabled = auto || s.level === 0 || (full && !canReplaceWeakest(s));
   $('autoBtn').classList.toggle('running', !!auto);
-  $('autoBtn').innerHTML = auto ? '<span>■ 중지</span><small>자동 강화 중</small>' : `<span>자동</span><small>목표 +${s.auto.target}</small>`;
+  $('autoBtn').innerHTML = auto
+    ? `<span>■ 중지</span><small>${s.auto.onTarget === 'store' ? `보관${auto.stored} 교체${auto.replaced} 판매${auto.sold}` : `판매 ${auto.sold} · 파괴 ${auto.destroyed}`}</small>`
+    : `<span>자동</span><small>목표 +${s.auto.target}</small>`;
 }
 
 const RESULT = { great: ['대성공!!', 'great'], success: ['성공!', 'success'], keep: ['유지', 'keep'], destroy: ['파괴...', 'destroy'] };
@@ -161,11 +163,13 @@ function doEnhance() {
   }, 280);
 }
 
-function showSold(r, speed = 1) {
+function showSold(r, speed = 1, weaker = null) {
   if (speed < 16) sfx('sell', s.settings.sound);
   const el = $('result');
   el.className = 'result sold';
-  el.innerHTML = `<b>판매 완료</b><span>+${r.level} ${weaponOf(r.weapon).name} → 💰 ${fmt(r.price)}</span>`;
+  el.innerHTML = weaker
+    ? `<b>판매 (보관함이 더 강함)</b><span>+${r.level} ${weaponOf(r.weapon).name} ⚔️${fmt(weaker.mine)} < 보관함 최약 ⚔️${fmt(weaker.weakest)} → 💰 ${fmt(r.price)}</span>`
+    : `<b>판매 완료</b><span>+${r.level} ${weaponOf(r.weapon).name} → 💰 ${fmt(r.price)}</span>`;
   void el.offsetWidth;
   el.classList.add('pop');
   announceWeapon(r.next, speed >= 16);
@@ -218,7 +222,7 @@ function renderAutoSheet() {
 function startAuto() {
   closeAutoSheet();
   if (s.level >= s.auto.target && s.auto.onTarget === 'stop') return toast(`이미 +${s.auto.target} 이상입니다`);
-  auto = { n: 0 };
+  auto = { n: 0, stored: 0, replaced: 0, sold: 0, weaker: 0, destroyed: 0, gold0: s.gold };
   renderForge();
   tick();
 }
@@ -226,11 +230,22 @@ function startAuto() {
 function stopAuto(msg) {
   if (!auto) return;
   clearTimeout(auto.timer);
+  const a = auto;
   auto = null;
+  // 자동 강화 결과 요약
+  if (a.n > 0) {
+    const parts = [`강화 ${fmt(a.n)}번`];
+    if (a.stored) parts.push(`보관 ${a.stored}`);
+    if (a.replaced) parts.push(`교체 ${a.replaced}`);
+    if (a.sold) parts.push(`판매 ${a.sold}${a.weaker ? ` (보관함보다 약해서 ${a.weaker})` : ''}`);
+    if (a.destroyed) parts.push(`파괴 ${a.destroyed}`);
+    const dg = s.gold - a.gold0;
+    msg = `${msg ? `${msg}<br>` : ''}<small>${parts.join(' · ')} · 골드 ${dg >= 0 ? '+' : '-'}${fmt(Math.abs(dg))}</small>`;
+  }
   persist(true);
   renderForge();
   if (tab !== 'forge') renderTab(tab);
-  if (msg) toast(msg, 2200);
+  if (msg) toast(msg, 4000);
 }
 
 // 배속: 1배는 380ms마다 1번. 빠른 배속은 화면을 40ms마다 한 번만 그리고 그사이 여러 번 강화
@@ -250,13 +265,17 @@ function tick() {
     auto.n++;
     if (step.action === 'stop') { stopMsg = step.reason; break; }
     last = step;
+    if (step.action === 'store') { auto.stored++; if (step.result.replaced) auto.replaced++; }
+    else if (step.action === 'sell') { auto.sold++; if (step.weaker) auto.weaker++; }
+    else if (step.result?.result === 'destroy') auto.destroyed++;
     if (step.stop) { stopMsg = step.stop; break; }
     // 빠른 배속에서도 새 무기 발견은 놓치지 않게 알림
     const next = step.result?.next;
     if (next?.fresh && speed >= 16) announceWeapon(next);
   }
   if (last) {
-    if (last.action === 'sell') showSold(last.result, speed);
+    if (last.action === 'sell' && last.weaker) showSold(last.result, speed, last.weaker);
+    else if (last.action === 'sell') showSold(last.result, speed);
     else if (last.action === 'store') showStored(last.result, speed);
     else showResult(last.result, speed);
   }
@@ -306,12 +325,14 @@ function renderStore() {
       지금까지 💰<b id="huntTotal">${fmt(s.stats.hunted)}</b> · 앱을 꺼도 오프라인 보상으로 쌓여요</p>`;
   $('storeCount').textContent = `${s.storage.length} / ${cap}칸`;
   const list = [...s.storage].sort((a, b) => attackOf(b.level, b.weapon) - attackOf(a.level, a.weapon));
+  const weakest = s.storage.length >= cap ? weakestStored(s) : null; // 가득 찼을 때 다음 교체 대상
   $('storeList').innerHTML = list.length ? list.map((x) => {
     const w = weaponOf(x.weapon);
     return `<div class="sitem hunting">
       <div class="wpic">${weaponSVG(x.level, x.weapon)}</div>
       <div class="info"><b style="color:${tierOf(x.level).color}">+${x.level} <span style="color:var(--text)">${weaponName(x.level, x.weapon)}</span></b>
         <span>${gradeTag(w)} ⚔️ 공격력 ${fmt(attackOf(x.level, x.weapon))} · 초당 💰${fmt(itemRate(s, x))}</span>
+        ${x === weakest ? '<span class="weak-tag">⬇ 가장 약함 · 더 강한 무기가 들어오면 교체</span>' : ''}
         <span>판매가 💰${fmt(sellPrice(s, x.level, x.weapon))}</span></div>
       <div class="acts">
         <button class="btn small alt" data-take="${x.uid}" ${auto ? 'disabled' : ''}>꺼내기</button>

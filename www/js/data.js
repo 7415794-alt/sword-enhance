@@ -1,5 +1,5 @@
 // 게임 데이터 · 밸런스 수치
-export const VERSION = '0.6.3';
+export const VERSION = '0.6.4';
 export const MAX_LEVEL = 300;
 
 // 현재 단계(L)에서 강화를 시도할 때의 확률 (%)

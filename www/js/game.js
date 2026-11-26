@@ -262,7 +262,9 @@ export function autoStep(s) {
     if (a.onTarget === 'store' && s.level > 0) {
       const r = storeCurrent(s); // 가득 차 있으면 더 약한 무기와 교체
       if (r) return { action: 'store', result: r };
-      return { action: 'sell', result: sell(s), note: '보관함의 무기들이 더 강해서 판매' };
+      const w = weakestStored(s);
+      const mine = attackOf(s.level, s.weapon);
+      return { action: 'sell', result: sell(s), weaker: { mine, weakest: w ? attackOf(w.level, w.weapon) : 0 } };
     }
     if (a.onTarget === 'sell' && s.level > 0) return { action: 'sell', result: sell(s) };
     return { action: 'stop', reason: `목표 +${a.target} 달성!` };

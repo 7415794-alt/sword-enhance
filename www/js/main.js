@@ -68,7 +68,8 @@ function renderForge() {
   renderHud();
   const t = tierOf(s.level);
   const w = weaponOf(s.weapon);
-  $('swordName').innerHTML = `<b style="color:${t.color}">+${s.level}</b> ${weaponName(s.level, s.weapon)}`;
+  $('lvBig').innerHTML = `<b style="color:${t.color}">+${s.level}</b><small>강</small>${s.level >= MAX_LEVEL ? '<em>MAX</em>' : ''}`;
+  $('swordName').textContent = weaponName(s.level, s.weapon);
   $('weaponInfo').innerHTML = `${gradeTag(w)} ${w.perk}`;
   const key = `${s.level}:${s.weapon}`;
   if (shownKey !== key) { $('sword').innerHTML = weaponSVG(s.level, s.weapon); shownKey = key; }

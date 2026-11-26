@@ -3,6 +3,7 @@ import {
   MAX_LEVEL, chances, enhanceCost, basePrice, fragmentsOnDestroy, ITEMS, itemGoldPrice,
   DEX_BONUS, WEAPON_DEX_BONUS, ACHIEVEMENTS, weaponOf, rollWeapon,
   UPGRADES, upgradeOf, upgradeCost, rebirthStones, REBIRTH_MIN, OFFLINE_BASE_HOURS, offlinePerHour, EVENTS, eventOf,
+  STORAGE_BASE, HUNT_BASE, attackOf, GOLD_PER_ATK,
 } from './data.js';
 import { newState } from './state.js';
 
@@ -101,11 +102,8 @@ export function enhance(s, rand = Math.random) {
 }
 
 // 판매: 현재 무기를 팔고 새 +0 무기를 받음
-export function sell(s) {
-  if (s.level === 0) return null;
-  const level = s.level;
-  const weapon = s.weapon;
-  const price = sellPrice(s);
+function recordSale(s, level, weapon) {
+  const price = sellPrice(s, level, weapon);
   s.gold += price;
   const st = s.stats;
   st.sells++;
@@ -115,9 +113,114 @@ export function sell(s) {
   s.ranking.push({ level, price, weapon, at: Date.now() });
   s.ranking.sort((a, b) => b.price - a.price);
   s.ranking = s.ranking.slice(0, 10);
+  return price;
+}
+
+export function sell(s) {
+  if (s.level === 0) return null;
+  const level = s.level;
+  const weapon = s.weapon;
+  const price = recordSale(s, level, weapon);
   const next = newWeapon(s);
   checkAchievements(s);
   return { level, price, weapon, next };
+}
+
+// ---------- 보관함 · 사냥 ----------
+export const storageCap = (s) => STORAGE_BASE + upLv(s, 'warehouse') * upgradeOf('warehouse').per;
+export const huntSlots = (s) => HUNT_BASE + upLv(s, 'barracks') * upgradeOf('barracks').per;
+export const hunters = (s) => s.storage.filter((x) => x.hunting);
+export const huntBonus = (s) => 1 + s.rebirth.stones * 0.1;
+export const itemRate = (s, x) => attackOf(x.level, x.weapon) * GOLD_PER_ATK * huntBonus(s);
+export const huntRate = (s) => hunters(s).reduce((a, x) => a + itemRate(s, x), 0);
+
+// 사냥 수익: secs초 동안 번 골드를 더함
+export function huntTick(s, secs) {
+  const g = huntRate(s) * secs;
+  if (g <= 0) return 0;
+  s.gold += g;
+  s.stats.hunted += g;
+  return g;
+}
+
+// 현재 무기를 보관하고 새 +0 무기를 받음
+export function storeCurrent(s) {
+  if (s.level < 1 || s.storage.length >= storageCap(s)) return null;
+  const item = { uid: s.nextUid++, weapon: s.weapon, level: s.level, hunting: false };
+  s.storage.push(item);
+  s.stats.stored++;
+  const next = newWeapon(s);
+  checkAchievements(s);
+  return { item, next };
+}
+
+export function sellStored(s, uid) {
+  const i = s.storage.findIndex((x) => x.uid === uid);
+  if (i < 0) return null;
+  const [x] = s.storage.splice(i, 1);
+  const price = recordSale(s, x.level, x.weapon);
+  checkAchievements(s);
+  return { level: x.level, weapon: x.weapon, price };
+}
+
+// 보관한 무기를 꺼내 강화: 지금 무기는 그 자리에 보관 (+0 무기는 버림)
+export function takeOut(s, uid) {
+  const i = s.storage.findIndex((x) => x.uid === uid);
+  if (i < 0) return null;
+  const x = s.storage[i];
+  if (s.level > 0) s.storage[i] = { uid: s.nextUid++, weapon: s.weapon, level: s.level, hunting: false };
+  else s.storage.splice(i, 1);
+  s.weapon = x.weapon;
+  s.level = x.level;
+  return x;
+}
+
+export function toggleHunt(s, uid) {
+  const x = s.storage.find((y) => y.uid === uid);
+  if (!x) return false;
+  if (x.hunting) { x.hunting = false; return true; }
+  if (hunters(s).length >= huntSlots(s)) return false;
+  x.hunting = true;
+  checkAchievements(s);
+  return true;
+}
+
+// 빈 사냥 슬롯을 공격력 높은 무기로 채움
+export function autoAssignHunt(s) {
+  const free = s.storage.filter((x) => !x.hunting).sort((a, b) => attackOf(b.level, b.weapon) - attackOf(a.level, a.weapon));
+  let n = 0;
+  // 더 강한 무기가 있으면 약한 사냥 무기와 교체
+  for (const x of free) {
+    const cur = hunters(s);
+    if (cur.length < huntSlots(s)) { x.hunting = true; n++; continue; }
+    const weakest = cur.sort((a, b) => attackOf(a.level, a.weapon) - attackOf(b.level, b.weapon))[0];
+    if (weakest && attackOf(x.level, x.weapon) > attackOf(weakest.level, weakest.weapon)) { weakest.hunting = false; x.hunting = true; n++; }
+  }
+  checkAchievements(s);
+  return n;
+}
+
+// ---------- 아이템이 이득인지 판단 ----------
+// guard: 파괴 확률 × 지금 무기 가치 > 방지권 가격
+// lucky: 부적으로 줄어드는 강화 비용 > 부적 가격
+// bless: 대성공(한 단계 건너뜀)으로 아끼는 비용 > 주문서 가격
+export function itemWorth(s, id) {
+  if (s.level >= MAX_LEVEL) return false;
+  const m = mods(s);
+  const base = chances(s.level, {}, s.weapon, m);
+  const price = goldPrice(s, id);
+  const risk = (base.destroy / 100) * sellPrice(s); // 이번 시도에서 파괴로 잃을 평균 가치
+  if (id === 'guard') return base.destroy > 0 && risk > price;
+  const p = (base.great + base.success) / 100;
+  if (p <= 0) return false;
+  // 한 번 시도할 때 드는 실제 비용 = 강화 비용 + (방지권 값 또는 파괴 위험) → 부적·주문서로 시도가 줄면 이만큼 아낌
+  const cost = Math.max(1, costNow(s)) + Math.min(risk, goldPrice(s, 'guard'));
+  if (id === 'lucky') {
+    const c = chances(s.level, { lucky: true }, s.weapon, m);
+    return price < cost * ((c.great + c.success) / 100 / p - 1);
+  }
+  const c = chances(s.level, { bless: true }, s.weapon, m);
+  return price < ((c.great - base.great) / 100) * (cost / p);
 }
 
 export const goldPrice = (s, id) => Math.floor(itemGoldPrice(id, s.best) * (eventActive(s, 'peddler') ? 0.5 : 1));
@@ -165,21 +268,30 @@ export function claimAll(s) {
 export function autoStep(s) {
   const a = s.auto;
   if (s.level >= Math.min(a.target, MAX_LEVEL)) {
+    if (a.onTarget === 'store' && s.level > 0) {
+      const r = storeCurrent(s);
+      if (r) { autoAssignHunt(s); return { action: 'store', result: r }; }
+      return { action: 'sell', result: sell(s), note: '보관함이 가득 차 판매' };
+    }
     if (a.onTarget === 'sell' && s.level > 0) return { action: 'sell', result: sell(s) };
     return { action: 'stop', reason: `목표 +${a.target} 달성!` };
   }
   // 아이템 준비: 떨어지면 조각 → 골드 순서로 자동 구매 (강화 비용은 남겨 둠)
-  const risk = chances(s.level, {}, s.weapon, mods(s)).destroy > 0;
+  // 기록 도전 중(목표 > 최고 기록)에는 파괴 위험이 있으면 방지권을 아끼지 않음 (무기가 부서지면 처음부터 다시라서)
+  // 그 밖에는 이득일 때만 사용. 파괴 확률 0%일 때 방지권은 절대 쓰지 않음
+  const pushing = a.target > s.best;
+  const risky = chances(s.level, {}, s.weapon, mods(s)).destroy > 0;
   for (const id of Object.keys(ITEMS)) {
     let want = a.items[id];
-    if (id === 'guard' && a.guardOnlyRisk && !risk) want = false;
+    if (want && id === 'guard' && !risky) want = false;
+    else if (want && a.smart && !(pushing && id === 'guard') && !itemWorth(s, id)) want = false;
     if (want && s.items[id] <= 0) {
       if (!buy(s, id, 'frag') && s.gold >= goldPrice(s, id) + costNow(s)) buy(s, id, 'gold');
     }
     s.use[id] = want && s.items[id] > 0;
   }
   if (!canEnhance(s)) {
-    if (s.level < MAX_LEVEL && a.onTarget === 'sell' && s.level > 0 && s.gold < costNow(s)) {
+    if (s.level < MAX_LEVEL && a.onTarget !== 'stop' && s.level > 0 && s.gold < costNow(s)) {
       return { action: 'sell', result: sell(s), note: '골드가 부족해 판매' };
     }
     return { action: 'stop', reason: '골드가 부족합니다' };
@@ -223,6 +335,7 @@ export function rebirth(s) {
   s.use = fresh.use;
   s.fragments = 0;
   s.upgrades = {};
+  s.storage = [];
   checkAchievements(s);
   return { gain };
 }
@@ -232,8 +345,10 @@ export const offlineHours = (s) => OFFLINE_BASE_HOURS + upLv(s, 'apprentice') * 
 // 꺼 둔 시간(분)과 받을 골드. 5분 미만이면 null
 export function offlineReward(s, now = Date.now()) {
   const mins = Math.min((now - (s.lastSeen || now)) / 60000, offlineHours(s) * 60);
-  if (mins < 5 || s.best < 1) return null;
-  return { mins: Math.floor(mins), gold: Math.floor(offlinePerHour(s.best) * priceBonus(s) * mins / 60) };
+  if (mins < 5 || (s.best < 1 && huntRate(s) <= 0)) return null;
+  const base = s.best >= 1 ? offlinePerHour(s.best) * priceBonus(s) * mins / 60 : 0;
+  const hunt = huntRate(s) * mins * 60;
+  return { mins: Math.floor(mins), gold: Math.floor(base + hunt), hunt: Math.floor(hunt) };
 }
 
 // ---------- 무작위 이벤트 ----------

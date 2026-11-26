@@ -63,7 +63,7 @@ console.log('\n3) 자동 강화로만 플레이 (목표 = 최고기록+2, 방지
 const { autoStep, buyUpgrade } = await import('../www/js/game.js');
 const { UPGRADES, upgradeCost } = await import('../www/js/data.js');
 const a = newState();
-a.auto = { ...a.auto, onTarget: 'sell', onDestroy: 'continue', items: { guard: true, lucky: true, bless: false }, guardOnlyRisk: true };
+a.auto = { ...a.auto, onTarget: 'sell', onDestroy: 'continue', items: { guard: true, lucky: true, bless: false }, smart: true };
 const m3 = {};
 let n = 0, stops = 0;
 while (n < 2e6 && a.best < MAX_LEVEL) {

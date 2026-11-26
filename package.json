@@ -1,6 +1,6 @@
 {
   "name": "sword-enhance",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "description": "검 강화하기 - 검을 강화하고 팔아서 돈을 버는 모바일 게임 (Capacitor)",

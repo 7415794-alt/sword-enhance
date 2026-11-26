@@ -1,5 +1,5 @@
 // 게임 데이터 · 밸런스 수치
-export const VERSION = '0.5.0';
+export const VERSION = '0.6.0';
 export const MAX_LEVEL = 300;
 
 // 현재 단계(L)에서 강화를 시도할 때의 확률 (%)
@@ -11,18 +11,18 @@ const destroyRate = (lv) => (lv < 5 ? 0 : Math.min(25, 1 + (lv - 5) * 0.37));
 const GREAT_RATIO = 0.1;
 
 // 무기 10종. 판매하거나 파괴되면 새 무기가 확률(weight)에 따라 나옴
-// price: 판매가 배율, succ: 성공 확률 +%p, destroy: 파괴 확률 배율, great: 대성공 배율, frag: 파괴 시 조각 배율
+// price: 판매가 배율, atk: 공격력(사냥) 배율, succ: 성공 확률 +%p, destroy: 파괴 확률 배율, great: 대성공 배율, frag: 파괴 시 조각 배율
 export const WEAPONS = [
-  { id: 'branch', name: '나뭇가지', grade: '흔함', weight: 22, price: 0.6, succ: 8, destroy: 1, great: 1, frag: 1, perk: '성공 확률 +8%p · 판매가 ×0.6' },
-  { id: 'wood', name: '목검', grade: '흔함', weight: 18, price: 0.8, succ: 0, destroy: 0.8, great: 1, frag: 1, perk: '파괴 확률 -20% · 판매가 ×0.8' },
-  { id: 'dagger', name: '단검', grade: '보통', weight: 15, price: 0.9, succ: 0, destroy: 1, great: 2, frag: 1, perk: '대성공 확률 2배 · 판매가 ×0.9' },
-  { id: 'sword', name: '장검', grade: '보통', weight: 14, price: 1, succ: 0, destroy: 1, great: 1, frag: 1, perk: '특별한 점 없는 기본 무기' },
-  { id: 'axe', name: '도끼', grade: '보통', weight: 10, price: 1.1, succ: 0, destroy: 1, great: 1, frag: 2, perk: '파괴 시 조각 2배 · 판매가 ×1.1' },
-  { id: 'spear', name: '창', grade: '희귀', weight: 8, price: 1.3, succ: 2, destroy: 1, great: 1, frag: 1, perk: '성공 확률 +2%p · 판매가 ×1.3' },
-  { id: 'great', name: '대검', grade: '희귀', weight: 6, price: 1.5, succ: 0, destroy: 0.7, great: 1, frag: 1, perk: '파괴 확률 -30% · 판매가 ×1.5' },
-  { id: 'katana', name: '카타나', grade: '영웅', weight: 4, price: 1.8, succ: 0, destroy: 1, great: 2, frag: 1, perk: '대성공 확률 2배 · 판매가 ×1.8' },
-  { id: 'scythe', name: '사신의 낫', grade: '전설', weight: 2, price: 3, succ: 0, destroy: 1.25, great: 1, frag: 1, perk: '파괴 확률 +25% · 판매가 ×3' },
-  { id: 'gold', name: '황금 검', grade: '신화', weight: 1, price: 5, succ: 0, destroy: 1, great: 1, frag: 3, perk: '판매가 ×5 · 파괴 시 조각 3배' },
+  { id: 'branch', name: '나뭇가지', grade: '흔함', weight: 22, price: 0.6, atk: 0.5, succ: 8, destroy: 1, great: 1, frag: 1, perk: '성공 확률 +8%p · 판매가 ×0.6' },
+  { id: 'wood', name: '목검', grade: '흔함', weight: 18, price: 0.8, atk: 0.6, succ: 0, destroy: 0.8, great: 1, frag: 1, perk: '파괴 확률 -20% · 판매가 ×0.8' },
+  { id: 'dagger', name: '단검', grade: '보통', weight: 15, price: 0.9, atk: 0.9, succ: 0, destroy: 1, great: 2, frag: 1, perk: '대성공 확률 2배 · 판매가 ×0.9' },
+  { id: 'sword', name: '장검', grade: '보통', weight: 14, price: 1, atk: 1, succ: 0, destroy: 1, great: 1, frag: 1, perk: '특별한 점 없는 기본 무기' },
+  { id: 'axe', name: '도끼', grade: '보통', weight: 10, price: 1.1, atk: 1.3, succ: 0, destroy: 1, great: 1, frag: 2, perk: '파괴 시 조각 2배 · 판매가 ×1.1' },
+  { id: 'spear', name: '창', grade: '희귀', weight: 8, price: 1.3, atk: 1.4, succ: 2, destroy: 1, great: 1, frag: 1, perk: '성공 확률 +2%p · 판매가 ×1.3' },
+  { id: 'great', name: '대검', grade: '희귀', weight: 6, price: 1.5, atk: 1.7, succ: 0, destroy: 0.7, great: 1, frag: 1, perk: '파괴 확률 -30% · 판매가 ×1.5' },
+  { id: 'katana', name: '카타나', grade: '영웅', weight: 4, price: 1.8, atk: 2, succ: 0, destroy: 1, great: 2, frag: 1, perk: '대성공 확률 2배 · 판매가 ×1.8' },
+  { id: 'scythe', name: '사신의 낫', grade: '전설', weight: 2, price: 3, atk: 2.6, succ: 0, destroy: 1.25, great: 1, frag: 1, perk: '파괴 확률 +25% · 판매가 ×3' },
+  { id: 'gold', name: '황금 검', grade: '신화', weight: 1, price: 5, atk: 1.2, succ: 0, destroy: 1, great: 1, frag: 3, perk: '판매가 ×5 · 파괴 시 조각 3배' },
 ];
 export const GRADE_COLOR = { 흔함: '#a8a29e', 보통: '#e5e7eb', 희귀: '#60a5fa', 영웅: '#c084fc', 전설: '#fb923c', 신화: '#facc15' };
 export const weaponOf = (id) => WEAPONS.find((w) => w.id === id) || WEAPONS[3];
@@ -126,6 +126,8 @@ export const WEAPON_DEX_BONUS = 0.02;
 // ---------- 대장간 업그레이드 (골드로 사는 영구 능력, 환생하면 초기화) ----------
 // cost: 첫 레벨 가격, grow: 레벨마다 가격 배율, per: 레벨당 효과
 export const UPGRADES = [
+  { id: 'warehouse', icon: '📦', name: '무기 창고 확장', unit: '보관함', per: 5, fmt: (v) => `+${v}칸`, max: 10, cost: 20000, grow: 4 },
+  { id: 'barracks', icon: '⛺', name: '사냥꾼 숙소', unit: '사냥 슬롯', per: 1, fmt: (v) => `+${v}칸`, max: 5, cost: 100000, grow: 12 },
   { id: 'hammer', icon: '🔨', name: '정밀한 망치', unit: '성공 확률', per: 0.5, fmt: (v) => `+${v}%p`, max: 10, cost: 50000, grow: 6 },
   { id: 'anvil', icon: '🧱', name: '단단한 모루', unit: '파괴 확률', per: 3, fmt: (v) => `-${v}%`, max: 10, cost: 80000, grow: 6 },
   { id: 'fortune', icon: '🌟', name: '행운의 부적함', unit: '대성공 확률', per: 10, fmt: (v) => `+${v}%`, max: 10, cost: 30000, grow: 5 },
@@ -136,6 +138,14 @@ export const UPGRADES = [
 ];
 export const upgradeCost = (u, lv) => Math.floor(u.cost * Math.pow(u.grow, lv));
 export const upgradeOf = (id) => UPGRADES.find((u) => u.id === id);
+
+// ---------- 보관함 · 사냥 ----------
+// 보관한 무기를 사냥에 내보내면 공격력만큼 초당 골드를 벌어 옴 (화면 없이 골드 수급용)
+// 공격력은 판매가와 비례: 사냥 1칸이 약 30분 동안 그 무기 판매가만큼 벌어 옴 (무기 공격력 배율 적용)
+export const STORAGE_BASE = 10;
+export const HUNT_BASE = 3;
+export const attackOf = (lv, wid) => Math.max(1, Math.floor(basePrice(lv) * weaponOf(wid).atk / 180));
+export const GOLD_PER_ATK = 0.1; // 공격력 1당 초당 골드
 
 // ---------- 환생 ----------
 // 최고 기록 +100부터 환생 가능. 환생석 = (최고 기록 - 90) / 10 (내림), +300이면 21개
@@ -247,5 +257,14 @@ export const ACHIEVEMENTS = [
   A('대장간', 'event10', '이벤트 사냥꾼', '무작위 이벤트 10번 만나기', (s) => st(s).events >= 10, { bless: 10 }),
   A('대장간', 'chest10', '보물 사냥꾼', '보물 상자 10개 열기', (s) => st(s).chests >= 10, { guard: 10 }),
   A('대장간', 'online', '세계에 이름을', '온라인 랭킹 등록', (s) => !!s.online.submitted, { guard: 5 }),
+  // 보관함 · 사냥
+  A('사냥', 'store1', '소중한 무기', '무기 1개 보관', (s) => st(s).stored >= 1, { gold: 5000 }),
+  A('사냥', 'store100', '무기 수집광', '무기 100개 보관', (s) => st(s).stored >= 100, { guard: 10 }),
+  A('사냥', 'hunt1', '첫 사냥', '무기를 사냥에 내보내기', (s) => s.storage.some((x) => x.hunting), { lucky: 3 }),
+  A('사냥', 'huntFull', '사냥단 결성', '사냥 슬롯 3칸 모두 채우기', (s) => s.storage.filter((x) => x.hunting).length >= 3, { guard: 3 }),
+  A('사냥', 'hunt1m', '사냥꾼', '사냥으로 누적 100만 골드', (s) => st(s).hunted >= 1e6, { guard: 5 }),
+  A('사냥', 'hunt1b', '전설의 사냥꾼', '사냥으로 누적 10억 골드', (s) => st(s).hunted >= 1e9, { guard: 30 }),
+  A('사냥', 'hunt1t', '마왕 토벌대', '사냥으로 누적 1조 골드', (s) => st(s).hunted >= 1e12, { guard: 100 }),
+  A('사냥', 'atk1m', '일당백', '공격력 100만 이상 무기 보유', (s) => s.storage.some((x) => attackOf(x.level, x.weapon) >= 1e6), { guard: 20 }),
 ];
 const upTotal = (s) => Object.values(s.upgrades).reduce((a, b) => a + b, 0);

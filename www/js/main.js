@@ -1,12 +1,13 @@
 // 화면 연결 · 렌더링
 import {
   VERSION, MAX_LEVEL, ITEMS, ACHIEVEMENTS, WEAPONS, GRADE_COLOR, DEX_BONUS, WEAPON_DEX_BONUS,
-  swordName, weaponName, tierOf, weaponOf, weaponChance, UPGRADES, upgradeCost, rebirthStones, REBIRTH_MIN, eventOf,
+  swordName, weaponName, tierOf, weaponOf, weaponChance, UPGRADES, upgradeCost, rebirthStones, REBIRTH_MIN, eventOf, attackOf,
 } from './data.js';
 import { load, save, reset, newState } from './state.js';
 import {
   currentChances, sellPrice, canEnhance, enhance, sell, buy, goldPrice, claim, claimAll, autoStep, priceBonus,
   costNow, upLv, checkAchievements, buyUpgrade, canRebirth, rebirth, offlineReward, offlineHours, maybeStartEvent, currentEvent, openChest,
+  storeCurrent, sellStored, takeOut, toggleHunt, autoAssignHunt, storageCap, huntSlots, hunters, huntRate, huntTick, itemWorth, itemRate,
 } from './game.js';
 import { onlineEnabled, submitScore, fetchTop, scoreOf, cleanName, ensureId } from './online.js';
 import { fmt, pct } from './format.js';
@@ -60,6 +61,8 @@ function renderHud() {
   $('gold').textContent = fmt(s.gold);
   $('frag').textContent = fmt(s.fragments);
   $('best').textContent = `+${s.best}`;
+  const rate = huntRate(s);
+  $('goldRate').textContent = rate > 0 ? `+${fmt(rate)}/초` : '';
   const ready = s.achieved.length - s.claimed.length;
   $('achDot').classList.toggle('show', ready > 0);
 }
@@ -70,7 +73,7 @@ function renderForge() {
   const w = weaponOf(s.weapon);
   $('lvBig').innerHTML = `<b style="color:${t.color}">+${s.level}</b><small>강</small>${s.level >= MAX_LEVEL ? '<em>MAX</em>' : ''}`;
   $('swordName').textContent = weaponName(s.level, s.weapon);
-  $('weaponInfo').innerHTML = `${gradeTag(w)} ${w.perk}`;
+  $('weaponInfo').innerHTML = `${gradeTag(w)} ${w.perk}${s.level > 0 ? ` · ⚔️ ${fmt(attackOf(s.level, s.weapon))}` : ''}`;
   const key = `${s.level}:${s.weapon}`;
   if (shownKey !== key) { $('sword').innerHTML = weaponSVG(s.level, s.weapon); shownKey = key; }
 
@@ -86,8 +89,10 @@ function renderForge() {
   $('useItems').innerHTML = Object.entries(ITEMS).map(([id, it]) => {
     const n = s.items[id];
     const on = s.use[id] && n > 0;
+    const worth = itemWorth(s, id);
+    const tag = s.level >= MAX_LEVEL ? '' : worth ? '<i class="tag good">이득</i>' : '<i class="tag bad">손해</i>';
     return `<button class="chip ${on ? 'on' : ''}" data-use="${id}" ${n > 0 && !auto ? '' : 'disabled'}>
-      <span>${it.icon}</span><em>${it.name}</em><b>${fmt(n)}</b></button>`;
+      <span>${it.icon}</span><em>${it.name}</em><b>${fmt(n)} ${tag}</b></button>`;
   }).join('');
 
   $('cost').textContent = max ? '-' : costNow(s) === 0 ? '무료 (골드 부족)' : `💰 ${fmt(costNow(s))}`;
@@ -95,6 +100,9 @@ function renderForge() {
   $('enhanceBtn').disabled = auto || !canEnhance(s);
   $('sellPrice').textContent = s.level > 0 ? `💰 ${fmt(sellPrice(s))}` : '+0은 팔 수 없음';
   $('sellBtn').disabled = auto || s.level === 0;
+  const cap = storageCap(s);
+  $('storeInfo').textContent = `${s.storage.length}/${cap}칸`;
+  $('storeBtn').disabled = auto || s.level === 0 || s.storage.length >= cap;
   $('autoBtn').classList.toggle('running', !!auto);
   $('autoBtn').innerHTML = auto ? '<span>■ 중지</span><small>자동 강화 중</small>' : `<span>자동</span><small>목표 +${s.auto.target}</small>`;
 }
@@ -197,8 +205,8 @@ function renderAutoSheet() {
   $('autoItems').innerHTML = Object.entries(ITEMS).map(([id, it]) => `
     <label class="check"><input type="checkbox" data-aitem="${id}" ${a.items[id] ? 'checked' : ''}>
       <span>${it.icon} ${it.name}</span><small>보유 ${fmt(s.items[id])}</small></label>`).join('')
-    + `<label class="check"><input type="checkbox" id="guardOnlyRisk" ${a.guardOnlyRisk ? 'checked' : ''}>
-      <span>파괴 확률이 있을 때만 방지권 사용</span></label>`;
+    + `<label class="check"><input type="checkbox" id="smartItems" ${a.smart ? 'checked' : ''}>
+      <span>이득일 때만 사용 (추천)<br><small class="note">파밍 중에는 무기 가치보다 비싼 아이템은 안 써요. 기록 도전 중(목표 > 최고 기록)에는 방지권을 아끼지 않아요.</small></span></label>`;
 }
 
 function startAuto() {
@@ -226,6 +234,7 @@ function tick() {
   auto.n++;
   if (step.action === 'stop') return stopAuto(`⏹ ${step.reason}`);
   if (step.action === 'sell') showSold(step.result);
+  else if (step.action === 'store') showStored(step.result);
   else showResult(step.result, s.auto.fast);
   if (s.achieved.length > before) {
     const a = ACHIEVEMENTS.find((x) => x.id === s.achieved[s.achieved.length - 1]);
@@ -236,6 +245,102 @@ function tick() {
   if (step.stop) return stopAuto(`⏹ ${step.stop}`);
   auto.timer = setTimeout(tick, s.auto.fast ? 120 : 380);
 }
+
+// ---------- 보관 · 사냥 ----------
+function showStored(r) {
+  sfx('buy', s.settings.sound);
+  const el = $('result');
+  el.className = 'result sold';
+  el.innerHTML = `<b>📦 보관 완료</b><span>+${r.item.level} ${weaponOf(r.item.weapon).name} · ⚔️ ${fmt(attackOf(r.item.level, r.item.weapon))}</span>`;
+  void el.offsetWidth;
+  el.classList.add('pop');
+  announceWeapon(r.next);
+}
+
+function doStore() {
+  if (auto || s.level === 0) return;
+  if (s.storage.length >= storageCap(s)) return toast('보관함이 가득 찼어요 (대장간 → 무기 창고 확장)');
+  const before = s.achieved.length;
+  const r = storeCurrent(s);
+  if (!r) return;
+  // 사냥 슬롯이 비어 있으면 바로 사냥에 내보냄
+  if (hunters(s).length < huntSlots(s)) toggleHunt(s, r.item.uid);
+  showStored(r);
+  afterChange(before);
+}
+
+function renderStore() {
+  renderHud();
+  const hs = hunters(s);
+  const slots = huntSlots(s);
+  const rate = huntRate(s);
+  let slotHtml = '';
+  for (let i = 0; i < slots; i++) {
+    const x = hs[i];
+    slotHtml += x
+      ? `<div class="slot on"><div class="wpic">${weaponSVG(x.level, x.weapon)}</div><b>+${x.level} ${weaponOf(x.weapon).name}</b><em>+${fmt(itemRate(s, x))}/초</em></div>`
+      : '<div class="slot">빈 슬롯</div>';
+  }
+  $('huntBox').innerHTML = `
+    <div class="hunt-head"><h2>⚔️ 사냥</h2><span class="rate">초당 💰${fmt(rate)}</span></div>
+    <p class="hunt-sub">사냥 슬롯 ${hs.length}/${slots} · 지금까지 💰<b id="huntTotal">${fmt(s.stats.hunted)}</b> · 앱을 꺼도 오프라인 보상으로 쌓여요</p>
+    <div class="slots">${slotHtml}</div>`;
+  const cap = storageCap(s);
+  $('storeCount').textContent = `${s.storage.length} / ${cap}칸`;
+  const list = [...s.storage].sort((a, b) => (b.hunting - a.hunting) || attackOf(b.level, b.weapon) - attackOf(a.level, a.weapon));
+  $('storeList').innerHTML = list.length ? list.map((x) => {
+    const w = weaponOf(x.weapon);
+    return `<div class="sitem ${x.hunting ? 'hunting' : ''}">
+      <div class="wpic">${weaponSVG(x.level, x.weapon)}</div>
+      <div class="info"><b style="color:${tierOf(x.level).color}">+${x.level} <span style="color:var(--text)">${weaponName(x.level, x.weapon)}</span></b>
+        <span>${gradeTag(w)} ⚔️ 공격력 ${fmt(attackOf(x.level, x.weapon))} · 초당 💰${fmt(itemRate(s, x))}</span>
+        <span>판매가 💰${fmt(sellPrice(s, x.level, x.weapon))}</span></div>
+      <div class="acts">
+        <button class="btn small ${x.hunting ? 'on' : ''}" data-hunt="${x.uid}">${x.hunting ? '사냥 중' : '사냥'}</button>
+        <button class="btn small alt" data-take="${x.uid}" ${auto ? 'disabled' : ''}>꺼내기</button>
+        <button class="btn small sell" data-sellst="${x.uid}" style="grid-column: span 2">판매</button>
+      </div></div>`;
+  }).join('') : '<div class="empty-note">보관한 무기가 없어요.<br>강화 화면에서 <b>보관</b>을 눌러 무기를 넣어 보세요.</div>';
+}
+
+$('storeBtn').addEventListener('click', doStore);
+$('autoHuntBtn').addEventListener('click', () => {
+  const n = autoAssignHunt(s);
+  toast(n ? `⚔️ 사냥 배치 완료 · 초당 💰${fmt(huntRate(s))}` : '이미 가장 강한 무기들이 사냥 중이에요');
+  persist(true);
+  renderStore();
+});
+$('storeList').addEventListener('click', (e) => {
+  const h = e.target.closest('[data-hunt]');
+  const t = e.target.closest('[data-take]');
+  const sl = e.target.closest('[data-sellst]');
+  if (h) {
+    if (!toggleHunt(s, Number(h.dataset.hunt))) toast(`사냥 슬롯이 가득 찼어요 (${huntSlots(s)}칸)`);
+    persist(true);
+    renderStore();
+  } else if (t) {
+    if (auto) return;
+    const x = s.storage.find((y) => y.uid === Number(t.dataset.take));
+    const msg = s.level > 0 ? `지금 무기(+${s.level} ${weaponOf(s.weapon).name})는 보관함에 들어가요.` : '지금 +0 무기는 버려져요.';
+    modal('무기를 꺼낼까요?', `<p><b>+${x.level} ${weaponName(x.level, x.weapon)}</b>을(를) 꺼내 강화합니다.</p><p class="muted">${msg}</p>`, [
+      { label: '취소', cls: 'small alt' },
+      { label: '꺼내기', onClick: () => { takeOut(s, x.uid); shownKey = ''; persist(true); renderStore(); renderForge(); toast('🔨 꺼낸 무기를 강화 화면에 올렸어요'); } },
+    ]);
+  } else if (sl) {
+    const x = s.storage.find((y) => y.uid === Number(sl.dataset.sellst));
+    const go = () => {
+      const before = s.achieved.length;
+      const r = sellStored(s, x.uid);
+      if (!r) return;
+      sfx('sell', s.settings.sound);
+      toast(`💰 +${r.level} ${weaponOf(r.weapon).name} 판매 · ${fmt(r.price)}`);
+      afterChange(before);
+      renderStore();
+    };
+    if (x.level >= 10) modal('판매할까요?', `<p><b>+${x.level} ${weaponName(x.level, x.weapon)}</b>을(를) 💰${fmt(sellPrice(s, x.level, x.weapon))}에 판매합니다.</p>`, [{ label: '취소', cls: 'small alt' }, { label: '판매', onClick: go }]);
+    else go();
+  }
+});
 
 // ---------- 상점 ----------
 function renderShop() {
@@ -329,6 +434,8 @@ function renderRank() {
     ['환생', `${s.rebirth.count}회 · 💎 ${s.rebirth.total}`],
     ['만난 이벤트', fmt(st.events)],
     ['연 보물 상자', fmt(st.chests)],
+    ['보관한 무기', fmt(st.stored)],
+    ['사냥 수익', fmt(st.hunted)],
   ];
   $('stats').innerHTML = items.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
   $('soundBtn').textContent = s.settings.sound ? '🔊 효과음 켜짐' : '🔇 효과음 꺼짐';
@@ -350,6 +457,10 @@ function renderEvent() {
 
 function eventTick() {
   if (document.hidden) return;
+  if (huntTick(s, 1) > 0) {
+    renderHud();
+    if (tab === 'store') $('huntTotal').textContent = fmt(s.stats.hunted);
+  }
   const had = s.event?.id;
   const e = maybeStartEvent(s);
   if (e) {
@@ -357,11 +468,11 @@ function eventTick() {
     toast(`${e.icon} 이벤트: <b>${e.name}</b> · ${e.desc}`, 3000);
     persist(true);
     renderForge();
-    if (tab === 'shop') renderShop();
+    if (tab === 'smith') renderShop();
   } else if (had && !currentEvent(s)) {
     s.event = null;
     renderForge();
-    if (tab === 'shop') renderShop();
+    if (tab === 'smith') renderShop();
   } else if (tab === 'forge') renderEvent();
 }
 
@@ -382,8 +493,9 @@ function checkOffline() {
   const h = Math.floor(r.mins / 60);
   const m = r.mins % 60;
   modal('🧑‍🔧 대장간이 쉬지 않고 일했어요', `
-    <p>자리를 비운 <b>${h ? `${h}시간 ` : ''}${m}분</b> 동안<br>견습생들이 무기를 만들어 팔았습니다.</p>
+    <p>자리를 비운 <b>${h ? `${h}시간 ` : ''}${m}분</b> 동안<br>견습생과 사냥꾼들이 골드를 벌어 왔어요.</p>
     <p class="big">💰 ${fmt(r.gold)}</p>
+    ${r.hunt > 0 ? `<p class="muted">그중 ⚔️ 사냥 수익 ${fmt(r.hunt)}</p>` : ''}
     <p class="muted">최대 ${offlineHours(s)}시간까지 쌓입니다. (대장간 → 견습생 고용으로 늘리기)</p>`,
   [{ label: '받기', onClick: () => {
     const before = s.achieved.length;
@@ -397,7 +509,7 @@ function checkOffline() {
 
 // ---------- 대장간 (업그레이드 · 환생) ----------
 function renderSmith() {
-  renderHud();
+  renderShop();
   $('upList').innerHTML = UPGRADES.map((u) => {
     const lv = upLv(s, u.id);
     const maxed = lv >= u.max;
@@ -419,7 +531,7 @@ function renderSmith() {
       <div><span>판매가</span><b>+${st * 10}%</b></div>
       <div><span>강화 비용</span><b>-${Math.min(50, st)}%</b></div>
     </div>
-    <p class="hint">최고 기록 <b>+${REBIRTH_MIN}</b>부터 환생할 수 있습니다. 골드 · 현재 무기 · 최고 기록 · 아이템 · 조각 · 대장간 업그레이드가 초기화되고,
+    <p class="hint">최고 기록 <b>+${REBIRTH_MIN}</b>부터 환생할 수 있습니다. 골드 · 현재 무기 · 보관함 · 최고 기록 · 아이템 · 조각 · 대장간 업그레이드가 초기화되고,
       도감 · 업적 · 통계는 남습니다. 환생석 1개당 판매가 +10%, 강화 비용 -1% (최대 -50%), 시작 골드 +1만.</p>
     <button class="btn rebirth" id="rebirthBtn" ${canRebirth(s) ? '' : 'disabled'}>
       <span>🔄 환생하기</span><small>${canRebirth(s) ? `환생석 💎 ${gain}개 획득 (+300이면 21개)` : `+${REBIRTH_MIN} 달성 필요 (현재 +${s.best})`}</small></button>`;
@@ -439,7 +551,7 @@ $('rebirthBox').addEventListener('click', (e) => {
   if (!e.target.closest('#rebirthBtn') || !canRebirth(s)) return;
   const gain = rebirthStones(s.best);
   modal('🔄 환생할까요?', `<p>최고 기록 <b>+${s.best}</b>으로 환생하면 <b>💎 환생석 ${gain}개</b>를 얻습니다.</p>
-    <p class="muted">골드 · 현재 무기 · 최고 기록 · 아이템 · 조각 · 대장간 업그레이드가 초기화됩니다.</p>`, [
+    <p class="muted">골드 · 현재 무기 · 보관함 · 최고 기록 · 아이템 · 조각 · 대장간 업그레이드가 초기화됩니다.</p>`, [
     { label: '취소', cls: 'small alt' },
     { label: '환생', onClick: () => {
       stopAuto();
@@ -506,7 +618,7 @@ $('onlineBox').addEventListener('click', (e) => {
     .catch(() => toast('등록에 실패했습니다. 인터넷 연결을 확인해 주세요'));
 });
 
-const RENDER = { forge: renderForge, shop: renderShop, smith: renderSmith, dex: renderDex, ach: renderAch, rank: () => { renderRank(); renderOnline(); } };
+const RENDER = { forge: renderForge, store: renderStore, smith: renderSmith, dex: renderDex, ach: renderAch, rank: () => { renderRank(); renderOnline(); } };
 const renderTab = (t) => RENDER[t]();
 
 // ---------- 이벤트 ----------
@@ -532,7 +644,7 @@ $('autoSheet').querySelector('.sheet').addEventListener('click', (e) => {
 });
 $('autoSheet').querySelector('.sheet').addEventListener('change', (e) => {
   if (e.target.dataset.aitem) s.auto.items[e.target.dataset.aitem] = e.target.checked;
-  if (e.target.id === 'guardOnlyRisk') s.auto.guardOnlyRisk = e.target.checked;
+  if (e.target.id === 'smartItems') s.auto.smart = e.target.checked;
   persist(true);
 });
 

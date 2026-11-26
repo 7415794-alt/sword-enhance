@@ -21,19 +21,21 @@ export function newState() {
     stats: {
       tries: 0, greats: 0, successes: 0, keeps: 0, destroys: 0, saved: 0, sells: 0, earned: 0, bestSale: 0,
       streak: 0, bestStreak: 0, fail: 0, bestFail: 0, highGreat: 0, worstBoom: 0, fragsGot: 0,
-      bestSoldLv: 0, itemsUsed: 0, autoTries: 0, offlineClaims: 0, events: 0, chests: 0,
+      bestSoldLv: 0, itemsUsed: 0, autoTries: 0, offlineClaims: 0, events: 0, chests: 0, stored: 0, hunted: 0,
     },
     ranking: [], // 판매 기록 상위 10 { level, price, at, weapon }
     // 자동 강화 설정
     auto: {
       target: 10, // 목표 단계
-      onTarget: 'sell', // 목표 도달 시: sell(판매 후 반복) | stop
+      onTarget: 'sell', // 목표 도달 시: sell(판매 후 반복) | store(보관 후 반복, 가득 차면 판매) | stop
       onDestroy: 'continue', // 파괴되면: continue | stop
       items: { guard: true, lucky: false, bless: false }, // 사용할 아이템 (떨어지면 자동 구매)
-      guardOnlyRisk: true, // 파괴 확률이 있을 때만 방지권 사용
+      smart: true, // 이득일 때만 아이템 사용 (파괴 위험 × 무기 가치 > 방지권 가격 등)
       fast: false, // 빠르게
     },
     upgrades: {}, // 대장간 업그레이드 { id: 레벨 }
+    storage: [], // 보관한 무기 [{ uid, weapon, level, hunting }]
+    nextUid: 1,
     rebirth: { count: 0, stones: 0, total: 0 }, // 환생 횟수, 보유 환생석, 누적 환생석
     event: null, // 진행 중인 이벤트 { id, until }
     nextEventAt: 0,
@@ -79,6 +81,7 @@ export function load() {
       rebirth: { ...base.rebirth, ...saved.rebirth },
       online: { ...base.online, ...saved.online },
     };
+    if (!saved.auto || saved.auto.smart === undefined) s.auto.smart = true; // 예전 설정 → 이득일 때만 사용
     // 무기가 없던 예전 저장 데이터: 장검으로 시작
     if (!saved.weapon) {
       s.weapon = 'sword';

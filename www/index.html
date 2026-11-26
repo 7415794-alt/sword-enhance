@@ -18,7 +18,7 @@
 <body>
   <div id="app">
     <header class="hud">
-      <div class="res gold"><span>💰</span><b id="gold">0</b></div>
+      <div class="res gold"><span>💰</span><b id="gold">0</b><i id="goldRate"></i></div>
       <div class="res frag" title="검 조각 (파괴 시 획득)"><span>🔩</span><b id="frag">0</b></div>
       <div class="res best" title="최고 강화 기록"><span>🏆</span><b id="best">+0</b></div>
     </header>
@@ -43,21 +43,26 @@
 
         <div class="actions">
           <button class="btn sell" id="sellBtn"><span>판매</span><small id="sellPrice"></small></button>
+          <button class="btn store" id="storeBtn"><span>보관</span><small id="storeInfo"></small></button>
           <button class="btn enhance" id="enhanceBtn"><span>강화</span><small id="cost"></small></button>
           <button class="btn auto" id="autoBtn"></button>
         </div>
       </section>
 
-      <!-- 상점 -->
-      <section class="view" data-view="shop">
-        <h2>보조 아이템 상점</h2>
-        <p class="hint">골드 가격은 최고 강화 기록이 오를수록 비싸집니다. 검 조각은 검이 파괴될 때 얻습니다.</p>
-        <div id="shopSale" class="sale-note"></div>
-        <div id="shopList" class="list"></div>
+      <!-- 보관함 · 사냥 -->
+      <section class="view" data-view="store">
+        <div class="hunt-box" id="huntBox"></div>
+        <div class="ach-head"><h2>보관함 <small id="storeCount"></small></h2><button class="btn small" id="autoHuntBtn">⚔️ 강한 무기로 사냥 배치</button></div>
+        <p class="hint">강화 화면의 <b>보관</b>으로 무기를 넣어 둘 수 있어요. 사냥에 내보내면 공격력만큼 골드를 벌어 오고, 꺼내서 다시 강화할 수도 있어요.</p>
+        <div id="storeList" class="list"></div>
       </section>
 
-      <!-- 대장간 -->
+      <!-- 대장간 (상점 · 업그레이드 · 환생) -->
       <section class="view" data-view="smith">
+        <h2>보조 아이템 상점</h2>
+        <p class="hint">골드 가격은 최고 강화 기록이 오를수록 비싸집니다. 검 조각은 무기가 파괴될 때 얻습니다.</p>
+        <div id="shopSale" class="sale-note"></div>
+        <div id="shopList" class="list"></div>
         <h2>대장간 업그레이드</h2>
         <p class="hint">골드로 대장간을 영구히 강화합니다. 환생하면 초기화됩니다.</p>
         <div id="upList" class="list"></div>
@@ -101,7 +106,7 @@
 
     <nav class="tabs" id="tabs">
       <button data-tab="forge" class="active"><span>🔨</span>강화</button>
-      <button data-tab="shop"><span>🛒</span>상점</button>
+      <button data-tab="store"><span>📦</span>보관함</button>
       <button data-tab="smith"><span>🏛️</span>대장간</button>
       <button data-tab="dex"><span>📖</span>도감</button>
       <button data-tab="ach"><span>🏅</span>업적<i class="dot" id="achDot"></i></button>
@@ -134,7 +139,8 @@
         </div>
         <div class="field">
           <label>목표에 도달하면</label>
-          <div class="seg-btns"><button data-opt="onTarget:sell">판매하고 반복</button><button data-opt="onTarget:stop">멈춤</button></div>
+          <div class="seg-btns three"><button data-opt="onTarget:sell">판매 후 반복</button><button data-opt="onTarget:store">보관 후 반복</button><button data-opt="onTarget:stop">멈춤</button></div>
+          <small class="note">보관 후 반복: 보관함이 가득 차면 판매하고, 강한 무기는 자동으로 사냥에 배치해요.</small>
         </div>
         <div class="field">
           <label>무기가 파괴되면</label>

@@ -1,5 +1,5 @@
 // 게임 데이터 · 밸런스 수치
-export const VERSION = '0.6.2';
+export const VERSION = '0.6.3';
 export const MAX_LEVEL = 300;
 
 // 현재 단계(L)에서 강화를 시도할 때의 확률 (%)
@@ -126,8 +126,7 @@ export const WEAPON_DEX_BONUS = 0.02;
 // ---------- 대장간 업그레이드 (골드로 사는 영구 능력, 환생하면 초기화) ----------
 // cost: 첫 레벨 가격, grow: 레벨마다 가격 배율, per: 레벨당 효과
 export const UPGRADES = [
-  { id: 'warehouse', icon: '📦', name: '무기 창고 확장', unit: '보관함', per: 5, fmt: (v) => `+${v}칸`, max: 10, cost: 20000, grow: 4 },
-  { id: 'barracks', icon: '⛺', name: '사냥꾼 숙소', unit: '사냥 슬롯', per: 1, fmt: (v) => `+${v}칸`, max: 5, cost: 100000, grow: 12 },
+  { id: 'warehouse', icon: '📦', name: '무기 창고 확장', unit: '보관함 · 사냥', per: 5, fmt: (v) => `+${v}칸`, max: 10, cost: 20000, grow: 4 },
   { id: 'hammer', icon: '🔨', name: '정밀한 망치', unit: '성공 확률', per: 0.5, fmt: (v) => `+${v}%p`, max: 10, cost: 50000, grow: 6 },
   { id: 'anvil', icon: '🧱', name: '단단한 모루', unit: '파괴 확률', per: 3, fmt: (v) => `-${v}%`, max: 10, cost: 80000, grow: 6 },
   { id: 'fortune', icon: '🌟', name: '행운의 부적함', unit: '대성공 확률', per: 10, fmt: (v) => `+${v}%`, max: 10, cost: 30000, grow: 5 },
@@ -140,12 +139,12 @@ export const upgradeCost = (u, lv) => Math.floor(u.cost * Math.pow(u.grow, lv));
 export const upgradeOf = (id) => UPGRADES.find((u) => u.id === id);
 
 // ---------- 보관함 · 사냥 ----------
-// 보관한 무기를 사냥에 내보내면 공격력만큼 초당 골드를 벌어 옴 (화면 없이 골드 수급용)
-// 공격력은 판매가와 비례: 사냥 1칸이 약 30분 동안 그 무기 판매가만큼 벌어 옴 (무기 공격력 배율 적용)
+// 보관한 무기는 모두 사냥에 나가 공격력만큼 초당 골드를 벌어 옴 (화면 없이 골드 수급용)
+// 공격력은 판매가와 비례: 무기 1개가 약 100분 동안 그 무기 판매가만큼 벌어 옴 (무기 공격력 배율 적용)
+// → 보관함 10칸이 가득 차면 예전 사냥 슬롯 3칸과 비슷한 수익, 창고를 넓힐수록 늘어남
 export const STORAGE_BASE = 10;
-export const HUNT_BASE = 3;
 export const attackOf = (lv, wid) => Math.max(1, Math.floor(basePrice(lv) * weaponOf(wid).atk / 180));
-export const GOLD_PER_ATK = 0.1; // 공격력 1당 초당 골드
+export const GOLD_PER_ATK = 0.03; // 공격력 1당 초당 골드
 
 // ---------- 환생 ----------
 // 최고 기록 +100부터 환생 가능. 환생석 = (최고 기록 - 90) / 10 (내림), +300이면 21개
@@ -260,8 +259,9 @@ export const ACHIEVEMENTS = [
   // 보관함 · 사냥
   A('사냥', 'store1', '소중한 무기', '무기 1개 보관', (s) => st(s).stored >= 1, { gold: 5000 }),
   A('사냥', 'store100', '무기 수집광', '무기 100개 보관', (s) => st(s).stored >= 100, { guard: 10 }),
-  A('사냥', 'hunt1', '첫 사냥', '무기를 사냥에 내보내기', (s) => s.storage.some((x) => x.hunting), { lucky: 3 }),
-  A('사냥', 'huntFull', '사냥단 결성', '사냥 슬롯 3칸 모두 채우기', (s) => s.storage.filter((x) => x.hunting).length >= 3, { guard: 3 }),
+  A('사냥', 'hunt1', '첫 사냥', '무기를 보관해 사냥 보내기', (s) => s.storage.length >= 1, { lucky: 3 }),
+  A('사냥', 'huntFull', '사냥단 결성', '보관함 10칸 모두 채우기', (s) => s.storage.length >= 10, { guard: 3 }),
+  A('사냥', 'hunt30', '사냥 군단', '무기 30개 동시에 사냥', (s) => s.storage.length >= 30, { guard: 20 }),
   A('사냥', 'hunt1m', '사냥꾼', '사냥으로 누적 100만 골드', (s) => st(s).hunted >= 1e6, { guard: 5 }),
   A('사냥', 'hunt1b', '전설의 사냥꾼', '사냥으로 누적 10억 골드', (s) => st(s).hunted >= 1e9, { guard: 30 }),
   A('사냥', 'hunt1t', '마왕 토벌대', '사냥으로 누적 1조 골드', (s) => st(s).hunted >= 1e12, { guard: 100 }),

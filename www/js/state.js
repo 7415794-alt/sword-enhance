@@ -34,7 +34,7 @@ export function newState() {
       speed: 1, // 배속 (1 · 2 · 4 · 8 · 16 · 32 · 64 · 128)
     },
     upgrades: {}, // 대장간 업그레이드 { id: 레벨 }
-    storage: [], // 보관한 무기 [{ uid, weapon, level, hunting }]
+    storage: [], // 보관한 무기 (모두 사냥 중) [{ uid, weapon, level }]
     nextUid: 1,
     rebirth: { count: 0, stones: 0, total: 0 }, // 환생 횟수, 보유 환생석, 누적 환생석
     event: null, // 진행 중인 이벤트 { id, until }

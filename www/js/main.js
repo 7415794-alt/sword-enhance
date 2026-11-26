@@ -7,7 +7,7 @@ import { load, save, reset, newState } from './state.js';
 import {
   currentChances, sellPrice, canEnhance, enhance, sell, buy, goldPrice, claim, claimAll, autoStep, priceBonus,
   costNow, upLv, checkAchievements, buyUpgrade, canRebirth, rebirth, offlineReward, offlineHours, maybeStartEvent, currentEvent, openChest,
-  storeCurrent, sellStored, takeOut, toggleHunt, autoAssignHunt, storageCap, huntSlots, hunters, huntRate, huntTick, itemWorth, itemRate,
+  storeCurrent, sellStored, takeOut, storageCap, hunters, huntRate, huntTick, itemWorth, itemRate,
   canReplaceWeakest, weakestStored,
 } from './game.js';
 import { onlineEnabled, submitScore, fetchTop, scoreOf, cleanName, ensureId } from './online.js';
@@ -297,54 +297,34 @@ function doStore() {
 
 function renderStore() {
   renderHud();
-  const hs = hunters(s);
-  const slots = huntSlots(s);
   const rate = huntRate(s);
-  let slotHtml = '';
-  for (let i = 0; i < slots; i++) {
-    const x = hs[i];
-    slotHtml += x
-      ? `<div class="slot on"><div class="wpic">${weaponSVG(x.level, x.weapon)}</div><b>+${x.level} ${weaponOf(x.weapon).name}</b><em>+${fmt(itemRate(s, x))}/초</em></div>`
-      : '<div class="slot">빈 슬롯</div>';
-  }
-  $('huntBox').innerHTML = `
-    <div class="hunt-head"><h2>⚔️ 사냥</h2><span class="rate">초당 💰${fmt(rate)}</span></div>
-    <p class="hunt-sub">사냥 슬롯 ${hs.length}/${slots} · 지금까지 💰<b id="huntTotal">${fmt(s.stats.hunted)}</b> · 앱을 꺼도 오프라인 보상으로 쌓여요</p>
-    <div class="slots">${slotHtml}</div>`;
   const cap = storageCap(s);
+  const atk = hunters(s).reduce((a, x) => a + attackOf(x.level, x.weapon), 0);
+  $('huntBox').innerHTML = `
+    <div class="hunt-head"><h2>⚔️ 사냥 중</h2><span class="rate">초당 💰${fmt(rate)}</span></div>
+    <p class="hunt-sub">보관한 무기 ${s.storage.length}/${cap}개가 모두 사냥 중 · 총 공격력 ${fmt(atk)}<br>
+      지금까지 💰<b id="huntTotal">${fmt(s.stats.hunted)}</b> · 앱을 꺼도 오프라인 보상으로 쌓여요</p>`;
   $('storeCount').textContent = `${s.storage.length} / ${cap}칸`;
-  const list = [...s.storage].sort((a, b) => (b.hunting - a.hunting) || attackOf(b.level, b.weapon) - attackOf(a.level, a.weapon));
+  const list = [...s.storage].sort((a, b) => attackOf(b.level, b.weapon) - attackOf(a.level, a.weapon));
   $('storeList').innerHTML = list.length ? list.map((x) => {
     const w = weaponOf(x.weapon);
-    return `<div class="sitem ${x.hunting ? 'hunting' : ''}">
+    return `<div class="sitem hunting">
       <div class="wpic">${weaponSVG(x.level, x.weapon)}</div>
       <div class="info"><b style="color:${tierOf(x.level).color}">+${x.level} <span style="color:var(--text)">${weaponName(x.level, x.weapon)}</span></b>
         <span>${gradeTag(w)} ⚔️ 공격력 ${fmt(attackOf(x.level, x.weapon))} · 초당 💰${fmt(itemRate(s, x))}</span>
         <span>판매가 💰${fmt(sellPrice(s, x.level, x.weapon))}</span></div>
       <div class="acts">
-        <button class="btn small ${x.hunting ? 'on' : ''}" data-hunt="${x.uid}">${x.hunting ? '사냥 중' : '사냥'}</button>
         <button class="btn small alt" data-take="${x.uid}" ${auto ? 'disabled' : ''}>꺼내기</button>
-        <button class="btn small sell" data-sellst="${x.uid}" style="grid-column: span 2">판매</button>
+        <button class="btn small sell" data-sellst="${x.uid}">판매</button>
       </div></div>`;
   }).join('') : '<div class="empty-note">보관한 무기가 없어요.<br>강화 화면에서 <b>보관</b>을 눌러 무기를 넣어 보세요.</div>';
 }
 
 $('storeBtn').addEventListener('click', doStore);
-$('autoHuntBtn').addEventListener('click', () => {
-  const n = autoAssignHunt(s);
-  toast(n ? `⚔️ 사냥 배치 완료 · 초당 💰${fmt(huntRate(s))}` : '이미 가장 강한 무기들이 사냥 중이에요');
-  persist(true);
-  renderStore();
-});
 $('storeList').addEventListener('click', (e) => {
-  const h = e.target.closest('[data-hunt]');
   const t = e.target.closest('[data-take]');
   const sl = e.target.closest('[data-sellst]');
-  if (h) {
-    if (!toggleHunt(s, Number(h.dataset.hunt))) toast(`사냥 슬롯이 가득 찼어요 (${huntSlots(s)}칸)`);
-    persist(true);
-    renderStore();
-  } else if (t) {
+  if (t) {
     if (auto) return;
     const x = s.storage.find((y) => y.uid === Number(t.dataset.take));
     const msg = s.level > 0 ? `지금 무기(+${s.level} ${weaponOf(s.weapon).name})는 보관함에 들어가요.` : '지금 +0 무기는 버려져요.';

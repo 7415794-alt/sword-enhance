@@ -3,7 +3,7 @@ import {
   MAX_LEVEL, chances, enhanceCost, basePrice, fragmentsOnDestroy, ITEMS, itemGoldPrice,
   DEX_BONUS, WEAPON_DEX_BONUS, ACHIEVEMENTS, weaponOf, rollWeapon,
   UPGRADES, upgradeOf, upgradeCost, rebirthStones, REBIRTH_MIN, OFFLINE_BASE_HOURS, offlinePerHour, EVENTS, eventOf,
-  STORAGE_BASE, HUNT_BASE, attackOf, GOLD_PER_ATK,
+  STORAGE_BASE, attackOf, GOLD_PER_ATK,
 } from './data.js';
 import { newState } from './state.js';
 
@@ -128,8 +128,7 @@ export function sell(s) {
 
 // ---------- 보관함 · 사냥 ----------
 export const storageCap = (s) => STORAGE_BASE + upLv(s, 'warehouse') * upgradeOf('warehouse').per;
-export const huntSlots = (s) => HUNT_BASE + upLv(s, 'barracks') * upgradeOf('barracks').per;
-export const hunters = (s) => s.storage.filter((x) => x.hunting);
+export const hunters = (s) => s.storage; // 보관한 무기는 모두 사냥 중
 export const huntBonus = (s) => 1 + s.rebirth.stones * 0.1;
 export const itemRate = (s, x) => attackOf(x.level, x.weapon) * GOLD_PER_ATK * huntBonus(s);
 export const huntRate = (s) => hunters(s).reduce((a, x) => a + itemRate(s, x), 0);
@@ -163,11 +162,10 @@ export function storeCurrent(s) {
     s.storage.splice(s.storage.indexOf(w), 1);
     replaced = { level: w.level, weapon: w.weapon, price: recordSale(s, w.level, w.weapon) };
   }
-  const item = { uid: s.nextUid++, weapon: s.weapon, level: s.level, hunting: false };
+  const item = { uid: s.nextUid++, weapon: s.weapon, level: s.level };
   s.storage.push(item);
   s.stats.stored++;
   const next = newWeapon(s);
-  autoAssignHunt(s); // 사냥 슬롯은 항상 가장 강한 무기로
   checkAchievements(s);
   return { item, next, replaced };
 }
@@ -186,36 +184,11 @@ export function takeOut(s, uid) {
   const i = s.storage.findIndex((x) => x.uid === uid);
   if (i < 0) return null;
   const x = s.storage[i];
-  if (s.level > 0) s.storage[i] = { uid: s.nextUid++, weapon: s.weapon, level: s.level, hunting: false };
+  if (s.level > 0) s.storage[i] = { uid: s.nextUid++, weapon: s.weapon, level: s.level };
   else s.storage.splice(i, 1);
   s.weapon = x.weapon;
   s.level = x.level;
   return x;
-}
-
-export function toggleHunt(s, uid) {
-  const x = s.storage.find((y) => y.uid === uid);
-  if (!x) return false;
-  if (x.hunting) { x.hunting = false; return true; }
-  if (hunters(s).length >= huntSlots(s)) return false;
-  x.hunting = true;
-  checkAchievements(s);
-  return true;
-}
-
-// 빈 사냥 슬롯을 공격력 높은 무기로 채움
-export function autoAssignHunt(s) {
-  const free = s.storage.filter((x) => !x.hunting).sort((a, b) => attackOf(b.level, b.weapon) - attackOf(a.level, a.weapon));
-  let n = 0;
-  // 더 강한 무기가 있으면 약한 사냥 무기와 교체
-  for (const x of free) {
-    const cur = hunters(s);
-    if (cur.length < huntSlots(s)) { x.hunting = true; n++; continue; }
-    const weakest = cur.sort((a, b) => attackOf(a.level, a.weapon) - attackOf(b.level, b.weapon))[0];
-    if (weakest && attackOf(x.level, x.weapon) > attackOf(weakest.level, weakest.weapon)) { weakest.hunting = false; x.hunting = true; n++; }
-  }
-  checkAchievements(s);
-  return n;
 }
 
 // ---------- 아이템이 이득인지 판단 ----------

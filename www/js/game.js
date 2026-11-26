@@ -29,9 +29,12 @@ export const itemFee = (s, id, lv = s.level) => Math.max(1, Math.floor(ITEMS[id]
 export const goldPrice = itemFee;
 
 // 이번 강화에 실제로 쓰이는 아이템: 켜져 있고, 가진 게 있거나 (강화 비용을 빼고) 결제할 골드가 있을 때
-// 어떻게 낼지: 가진 아이템(item) → 검 조각(frag) → 골드(gold) 순서
-// smart: '이득일 때만 사용'이 켜져 있으면 손해인 아이템은 켜 두어도 쓰지 않음 (자동 강화는 직접 판단하므로 끔)
-export function activeItems(s, smart = s.auto.smart) {
+// 이번 강화에 쓸 아이템
+// - 아이템 칸에서 켜 둔 것(s.use)은 항상 사용
+// - '이득이면 무조건 사용'(s.auto.smart)이 켜져 있으면 꺼 둔 아이템도 이득일 때 사용
+// - force: 자동 강화가 꼭 쓰려는 아이템 (기록 도전 중 방지권)
+// 결제: 가진 아이템(item) → 검 조각(frag) → 골드(gold) 순서
+export function activeItems(s, force = {}) {
   const out = {};
   const pay = {};
   let left = s.gold - costNow(s);
@@ -40,8 +43,8 @@ export function activeItems(s, smart = s.auto.smart) {
   for (const id of ['guard', 'lucky', 'bless']) {
     out[id] = false;
     // 파괴 확률 0%일 때 방지권은 쓰지 않음 (효과 없이 아이템 · 골드만 나가지 않게)
-    if (!s.use[id] || s.level >= MAX_LEVEL || (id === 'guard' && !risky)) continue;
-    if (smart && !itemWorth(s, id)) continue;
+    if (s.level >= MAX_LEVEL || (id === 'guard' && !risky)) continue;
+    if (!(s.use[id] || force[id] || (s.auto.smart && itemWorth(s, id)))) continue;
     if (s.items[id] > 0) { out[id] = true; pay[id] = 'item'; continue; }
     if (frags >= ITEMS[id].frag) { out[id] = true; pay[id] = 'frag'; frags -= ITEMS[id].frag; continue; }
     const fee = itemFee(s, id);
@@ -80,11 +83,11 @@ function newWeapon(s) {
 }
 
 // 강화 시도. 결과: { result: 'great'|'success'|'keep'|'destroy', from, to, saved, fragments, next }
-export function enhance(s, rand = Math.random, fromAuto = false) {
+export function enhance(s, rand = Math.random, force = {}) {
   if (!canEnhance(s)) return null;
   const from = s.level;
   const wid = s.weapon;
-  const used = activeItems(s, fromAuto ? false : s.auto.smart);
+  const used = activeItems(s, force);
   const m = mods(s);
   const ch = chances(from, used, wid, m);
   const raw = chances(from, { ...used, guard: false }, wid, m); // 방지권이 막았는지 판단용
@@ -339,25 +342,16 @@ export function autoStep(s) {
     if (a.onTarget === 'sell' && s.level > 0) return { action: 'sell', result: sell(s) };
     return { action: 'stop', reason: `목표 +${a.target} 달성!` };
   }
-  // 아이템 준비: 떨어지면 조각 → 골드 순서로 자동 구매 (강화 비용은 남겨 둠)
-  // 기록 도전 중(목표 > 최고 기록)에는 파괴 위험이 있으면 방지권을 아끼지 않음 (무기가 부서지면 처음부터 다시라서)
-  // 그 밖에는 이득일 때만 사용. 파괴 확률 0%일 때 방지권은 절대 쓰지 않음
-  const pushing = a.target > s.best;
-  const risky = chances(s.level, {}, s.weapon, mods(s)).destroy > 0;
-  for (const id of Object.keys(ITEMS)) {
-    let want = a.items[id];
-    if (want && id === 'guard' && !risky) want = false;
-    else if (want && a.smart && !(pushing && id === 'guard') && !itemWorth(s, id)) want = false;
-    // 결제는 강화할 때 가진 아이템 → 조각 → 골드 순서로 자동 처리
-    s.use[id] = want;
-  }
+  // 아이템은 강화 화면과 같은 규칙 (켜 둔 것 + 이득이면 무조건 사용)
+  // 기록 도전 중(목표 > 최고 기록)에 '이득이면 무조건 사용'이 켜져 있으면 방지권을 아끼지 않음 (부서지면 처음부터 다시라서)
+  const force = { guard: a.smart && a.target > s.best };
   if (!canEnhance(s)) {
     if (s.level < MAX_LEVEL && a.onTarget !== 'stop' && s.level > 0 && s.gold < costNow(s)) {
       return { action: 'sell', result: sell(s), note: '골드가 부족해 판매' };
     }
     return { action: 'stop', reason: '골드가 부족합니다' };
   }
-  const r = enhance(s, Math.random, true);
+  const r = enhance(s, Math.random, force);
   s.stats.autoTries++;
   if (r.result === 'destroy' && a.onDestroy === 'stop') return { action: 'enhance', result: r, stop: '무기가 파괴되어 멈췄습니다' };
   return { action: 'enhance', result: r };

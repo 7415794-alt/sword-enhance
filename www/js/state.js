@@ -30,7 +30,7 @@ export function newState() {
       onTarget: 'sell', // 목표 도달 시: sell(판매 후 반복) | store(보관 후 반복, 가득 차면 판매) | stop
       onDestroy: 'continue', // 파괴되면: continue | stop
       items: { guard: true, lucky: false, bless: false }, // 사용할 아이템 (떨어지면 자동 구매)
-      smart: true, // 이득일 때만 아이템 사용 (파괴 위험 × 무기 가치 > 방지권 가격 등)
+      smart: true, // 이득이면 무조건 사용: 아이템 칸에서 꺼 둔 아이템도 이득일 때 자동 사용 (직접 · 자동 강화 공용)
       swap: true, // 강화 중 무기가 보관함의 가장 약한 무기보다 강해지면 바로 맞바꿈 (직접 강화에도 적용)
       speed: 1, // 배속 (1 · 2 · 4 · 8 · 16 · 32 · 64 · 128)
     },
@@ -42,6 +42,7 @@ export function newState() {
     nextEventAt: 0,
     online: { name: '', id: '', submitted: 0 }, // 온라인 랭킹 닉네임 · 기기 ID · 마지막 등록 점수
     lastSeen: Date.now(), // 오프라인 보상 계산용
+    autoUseV: 1,
     settings: { sound: true },
     createdAt: Date.now(),
   };
@@ -82,6 +83,8 @@ export function load() {
       rebirth: { ...base.rebirth, ...saved.rebirth },
       online: { ...base.online, ...saved.online },
     };
+    // v0.7.3: '이득이면 무조건 사용'으로 바뀜 → 예전 자동 강화가 켜 둔 아이템 표시는 초기화
+    if (!saved.autoUseV) { s.use = { guard: false, lucky: false, bless: false }; s.auto.smart = true; s.autoUseV = 1; }
     if (!saved.auto || saved.auto.swap === undefined) s.auto.swap = true;
     if (!saved.auto || saved.auto.smart === undefined) s.auto.smart = true; // 예전 설정 → 이득일 때만 사용
     if (!saved.auto || saved.auto.speed === undefined) s.auto.speed = saved.auto && saved.auto.fast ? 4 : 1; // 예전 '빠르게' → 4배속

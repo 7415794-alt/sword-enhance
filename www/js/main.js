@@ -96,10 +96,11 @@ function renderForge() {
     // 다음에 쓸 때 낼 것: 가진 아이템 개수 → 검 조각 → 골드
     const p = paySource(s, id);
     const stock = p.by === 'item' ? `${fmt(p.n)}개` : p.by === 'frag' ? `🔩${p.n}` : `💰${fmt(p.n)}`;
-    // 켜 두었지만 이번 강화에 실제로 안 쓰이면(손해 · 파괴 0% · 골드 부족) 흐리게
+    // 켜 두었지만 이번 강화에 실제로 안 쓰이면(파괴 0% · 결제 부족) 흐리게, 꺼 두었지만 이득이라 자동으로 쓰이면 '자동'
     const idle = on && !act[id] ? ' idle' : '';
-    return `<button class="chip ${on ? 'on' : ''}${idle}" data-use="${id}" ${!auto && s.level < MAX_LEVEL ? '' : 'disabled'}>
-      <span>${it.icon}</span><em>${it.name}</em><b>${stock} ${tag}</b></button>`;
+    const autoOn = !on && act[id] ? ' auto-on' : '';
+    return `<button class="chip ${on ? 'on' : ''}${idle}${autoOn}" data-use="${id}" ${!auto && s.level < MAX_LEVEL ? '' : 'disabled'}>
+      ${autoOn ? '<i class="auto-badge">⚡자동</i>' : ''}<span>${it.icon}</span><em>${it.name}</em><b>${stock} ${tag}</b></button>`;
   }).join('');
 
   $('cost').textContent = max ? '-' : costNow(s) === 0 ? '무료 (골드 부족)' : `💰 ${fmt(costNow(s))}`;
@@ -222,13 +223,10 @@ function renderAutoSheet() {
     const [k, v] = b.dataset.opt.split(':');
     b.classList.toggle('on', String(a[k]) === v);
   });
-  $('autoItems').innerHTML = Object.entries(ITEMS).map(([id, it]) => `
-    <label class="check"><input type="checkbox" data-aitem="${id}" ${a.items[id] ? 'checked' : ''}>
-      <span>${it.icon} ${it.name}</span><small>보유 ${fmt(s.items[id])}</small></label>`).join('')
+  $('autoItems').innerHTML = `<label class="check"><input type="checkbox" id="smartItems" ${a.smart ? 'checked' : ''}>
+      <span>⚡ 이득이면 무조건 사용 (추천)<br><small class="note">강화 화면의 스위치와 같은 설정이에요. 아이템 칸에서 꺼 둔 아이템도 이득일 때 자동으로 쓰고, 켜 둔 아이템은 항상 써요. 기록 도전 중(목표 > 최고 기록)에는 방지권을 아끼지 않아요. 가진 아이템 → 🔩조각 → 💰골드 순으로 결제해요.</small></span></label>`
     + `<label class="check"><input type="checkbox" id="swapStronger" ${a.swap ? 'checked' : ''}>
-      <span>🔄 강해지면 보관함 무기와 바로 교체<br><small class="note">보관함이 가득 찼을 때, 강화 중인 무기의 공격력이 가장 약한 보관 무기보다 높아지면 즉시 맞바꾸고 약한 무기를 이어서 강화해요. 직접 강화에도 적용돼요.</small></span></label>`
-    + `<label class="check"><input type="checkbox" id="smartItems" ${a.smart ? 'checked' : ''}>
-      <span>⚖️ 이득일 때만 사용 (추천)<br><small class="note">강화 화면의 스위치와 같은 설정이에요. 파밍 중에는 손해인 아이템은 안 써요. 기록 도전 중(목표 > 최고 기록)에는 방지권을 아끼지 않아요. 아이템을 다 쓰면 🔩조각 → 💰골드 순으로 결제해요.</small></span></label>`;
+      <span>🔄 강해지면 보관함 무기와 바로 교체<br><small class="note">보관함이 가득 찼을 때, 강화 중인 무기의 공격력이 가장 약한 보관 무기보다 높아지면 즉시 맞바꾸고 약한 무기를 이어서 강화해요. 직접 강화에도 적용돼요.</small></span></label>`;
 }
 
 function startAuto() {
@@ -682,15 +680,14 @@ $('autoSheet').querySelector('.sheet').addEventListener('click', (e) => {
   if (step || opt) { persist(true); renderAutoSheet(); renderForge(); }
 });
 $('autoSheet').querySelector('.sheet').addEventListener('change', (e) => {
-  if (e.target.dataset.aitem) s.auto.items[e.target.dataset.aitem] = e.target.checked;
-  if (e.target.id === 'smartItems') s.auto.smart = e.target.checked;
+  if (e.target.id === 'smartItems') { s.auto.smart = e.target.checked; renderForge(); }
   if (e.target.id === 'swapStronger') { s.auto.swap = e.target.checked; renderForge(); }
   persist(true);
 });
 
 $('smartToggle').addEventListener('change', (e) => {
   s.auto.smart = e.target.checked; // 직접 강화 · 자동 강화 공용
-  toast(s.auto.smart ? '⚖️ 이득일 때만 아이템을 써요' : '켜 둔 아이템은 항상 써요');
+  toast(s.auto.smart ? '⚡ 이득이면 아이템을 자동으로 써요' : '켜 둔 아이템만 써요');
   persist(true);
   renderForge();
 });

@@ -28,6 +28,7 @@
       <section class="view active" data-view="forge">
         <div class="anvil">
           <div class="sword-name" id="swordName"></div>
+          <div class="weapon-info" id="weaponInfo"></div>
           <div class="sword-wrap" id="swordWrap"><div id="sword"></div><div class="fx" id="fx"></div></div>
           <div class="result" id="result"></div>
         </div>
@@ -39,6 +40,7 @@
         <div class="actions">
           <button class="btn sell" id="sellBtn"><span>판매</span><small id="sellPrice"></small></button>
           <button class="btn enhance" id="enhanceBtn"><span>강화</span><small id="cost"></small></button>
+          <button class="btn auto" id="autoBtn"></button>
         </div>
       </section>
 
@@ -51,14 +53,18 @@
 
       <!-- 도감 -->
       <section class="view" data-view="dex">
-        <h2>검 도감 <small id="dexCount"></small></h2>
-        <p class="hint">처음 도달한 강화 단계가 등록됩니다. 등록된 검 하나당 판매가 <b>+1%</b>.</p>
+        <h2>무기 도감 <small id="wdexCount"></small></h2>
+        <p class="hint">판매하거나 파괴되면 새 무기가 무작위로 나옵니다. 발견한 무기 하나당 판매가 <b>+2%</b>.</p>
+        <div id="weaponDex" class="wdex"></div>
+        <h2>강화 도감 <small id="dexCount"></small></h2>
+        <p class="hint">처음 도달한 강화 단계가 등록됩니다. 한 칸당 판매가 <b>+1%</b>.</p>
         <div id="dexGrid" class="dex"></div>
       </section>
 
       <!-- 업적 -->
       <section class="view" data-view="ach">
-        <h2>업적 <small id="achCount"></small></h2>
+        <div class="ach-head"><h2>업적 <small id="achCount"></small></h2><button class="btn small" id="claimAll">모두 받기</button></div>
+        <div class="cats" id="achCats"></div>
         <div id="achList" class="list"></div>
       </section>
 
@@ -86,6 +92,42 @@
     </nav>
 
     <div class="toast" id="toast"></div>
+
+    <!-- 자동 강화 설정 -->
+    <div class="sheet-bg" id="autoSheet">
+      <div class="sheet">
+        <h3>⚙️ 자동 강화</h3>
+        <div class="field">
+          <label>목표 단계</label>
+          <div class="stepper">
+            <button data-step="-10">-10</button><button data-step="-1">-1</button>
+            <b id="autoTarget">+10</b>
+            <button data-step="1">+1</button><button data-step="10">+10</button>
+          </div>
+          <button class="link" data-step="0">최고 기록 +1로 맞추기</button>
+        </div>
+        <div class="field">
+          <label>목표에 도달하면</label>
+          <div class="seg-btns"><button data-opt="onTarget:sell">판매하고 반복</button><button data-opt="onTarget:stop">멈춤</button></div>
+        </div>
+        <div class="field">
+          <label>무기가 파괴되면</label>
+          <div class="seg-btns"><button data-opt="onDestroy:continue">새 무기로 계속</button><button data-opt="onDestroy:stop">멈춤</button></div>
+        </div>
+        <div class="field">
+          <label>사용할 아이템 <small>(떨어지면 조각 → 골드로 자동 구매)</small></label>
+          <div id="autoItems" class="checks"></div>
+        </div>
+        <div class="field">
+          <label>속도</label>
+          <div class="seg-btns"><button data-opt="fast:false">보통</button><button data-opt="fast:true">빠르게</button></div>
+        </div>
+        <div class="sheet-actions">
+          <button class="btn small alt" id="autoClose">닫기</button>
+          <button class="btn enhance" id="autoStart"><span>▶ 시작</span></button>
+        </div>
+      </div>
+    </div>
   </div>
   <script type="module" src="js/main.js"></script>
 </body>

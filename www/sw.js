@@ -1,8 +1,8 @@
 // 오프라인 실행용 서비스 워커 (게임 파일 수정 시 CACHE 버전을 올리세요)
-const CACHE = 'sword-v0.2.0';
+const CACHE = 'sword-v0.3.0';
 const ASSETS = [
   './', './index.html', './css/style.css',
-  './js/main.js', './js/data.js', './js/state.js', './js/game.js', './js/format.js', './js/sword.js', './js/sound.js',
+  './js/main.js', './js/data.js', './js/state.js', './js/game.js', './js/format.js', './js/weapon.js', './js/sound.js',
   './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png',
 ];
 

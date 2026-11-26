@@ -122,7 +122,7 @@ h2 small { font-size: 12px; color: var(--muted); font-weight: 500; margin-left: 
 .chip.on em { color: var(--gold); }
 .chip:disabled { opacity: .4; }
 
-.actions { display: grid; grid-template-columns: 1fr 1.6fr; gap: 8px; padding-bottom: 2px; }
+.actions { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 8px; padding-bottom: 2px; }
 .btn {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   padding: 12px 8px; border-radius: var(--radius); font-weight: 800; font-size: 18px;
@@ -205,3 +205,55 @@ h2 small { font-size: 12px; color: var(--muted); font-weight: 500; margin-left: 
   .anvil { min-height: 190px; }
 }
 .card.ach.done .btn { background: linear-gradient(180deg, #f59e0b, #b45309); border-color: #fbbf24; color: #1a0f00; }
+
+/* ---------- 무기 정보 ---------- */
+.weapon-info { font-size: 12px; color: var(--muted); margin-top: 2px; text-align: center; }
+.grade { font-style: normal; font-size: 10.5px; font-weight: 800; color: var(--g); border: 1px solid var(--g); border-radius: 6px; padding: 0 5px; margin-right: 3px; vertical-align: 1px; }
+.toast .grade { font-size: 11px; }
+
+/* ---------- 자동 강화 ---------- */
+.btn.auto { background: linear-gradient(180deg, #334155, #1e293b); border-color: #64748b; font-size: 17px; }
+.btn.auto.running { background: linear-gradient(180deg, #b91c1c, #7f1d1d); border-color: #f87171; animation: pulse 1s infinite alternate; }
+@keyframes pulse { from { box-shadow: 0 0 0 rgba(248, 113, 113, 0); } to { box-shadow: 0 0 16px rgba(248, 113, 113, .7); } }
+.sheet-bg { position: absolute; inset: 0; background: rgba(0, 0, 0, .6); display: none; align-items: flex-end; z-index: 10; }
+.sheet-bg.show { display: flex; }
+.sheet { width: 100%; max-height: 90%; overflow-y: auto; background: var(--bg2); border-top: 1px solid var(--line); border-radius: 18px 18px 0 0; padding: 14px 14px calc(14px + var(--safe-bottom)); animation: up .2s ease-out; }
+@keyframes up { from { transform: translateY(40px); opacity: 0; } }
+.sheet h3 { margin: 0 0 10px; font-size: 17px; }
+.field { margin-bottom: 12px; }
+.field > label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.field small { font-size: 11px; }
+.stepper { display: flex; align-items: center; gap: 6px; }
+.stepper button { background: var(--card2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 0; flex: 1; font-weight: 700; }
+.stepper b { flex: 1.4; text-align: center; font-size: 22px; color: var(--accent); }
+.link { color: var(--accent); font-size: 12.5px; padding: 6px 0 0; text-decoration: underline; }
+.seg-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.seg-btns button { background: var(--card); border: 1.5px solid var(--line); border-radius: 9px; padding: 9px 4px; font-size: 13.5px; font-weight: 700; color: var(--muted); }
+.seg-btns button.on { border-color: var(--accent); color: var(--gold); background: #3a2a12; }
+.checks { display: flex; flex-direction: column; gap: 6px; }
+.check { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font-size: 13.5px; }
+.check input { width: 18px; height: 18px; accent-color: var(--accent); }
+.check small { margin-left: auto; color: var(--muted); }
+.sheet-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; margin-top: 6px; }
+
+/* ---------- 상점 ---------- */
+.btn.ghost { background: transparent; font-size: 12px; padding: 5px 8px; }
+
+/* ---------- 무기 도감 ---------- */
+.wdex { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 14px; }
+.wcard { display: flex; gap: 6px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 6px; opacity: .55; }
+.wcard.got { opacity: 1; border-color: color-mix(in srgb, var(--g) 60%, var(--line)); }
+.wpic { width: 30px; height: 70px; flex: none; display: flex; align-items: center; justify-content: center; }
+.wpic svg { width: 100%; height: 100%; }
+.wpic b { font-size: 22px; color: #555; }
+.winfo { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.winfo b { font-size: 13px; }
+.winfo span { font-size: 10.5px; color: var(--muted); line-height: 1.35; }
+.winfo .muted { opacity: .8; }
+
+/* ---------- 업적 ---------- */
+.ach-head { display: flex; align-items: center; justify-content: space-between; }
+.ach-head .btn:not(:disabled) { background: linear-gradient(180deg, #f59e0b, #b45309); border-color: #fbbf24; color: #1a0f00; }
+.cats { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 10px; scrollbar-width: none; }
+.cat { flex: none; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; font-size: 12.5px; color: var(--muted); }
+.cat.on { border-color: var(--accent); color: var(--gold); }

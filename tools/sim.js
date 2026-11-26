@@ -7,7 +7,7 @@ const { enhanceCost, chances, MAX_LEVEL } = await import('../www/js/data.js');
 
 // 전략: 성공률이 낮으면 부적, 파괴 위험이 크면 방지권을 (없으면 사서) 사용
 function useItems(s, guardFrom, luckyBelow) {
-  const ch = chances(s.level);
+  const ch = chances(s.level, {}, s.weapon);
   const wantGuard = s.level >= guardFrom && ch.destroy > 0;
   const wantLucky = ch.success + ch.great < luckyBelow;
   for (const [id, want] of [['guard', wantGuard], ['lucky', wantLucky]]) {
@@ -56,4 +56,21 @@ while (t < 2e6 && s.best < MAX_LEVEL) {
   for (const m of goals) if (s.best >= m && !marks[m]) marks[m] = t;
 }
 console.log('t', t, 'best', s.best, 'gold', s.gold.toExponential(2), 'stats', JSON.stringify(s.stats), 'items', JSON.stringify(s.items));
-console.log('최고 기록 도달 시점(강화 시도 횟수):', marks);
+console.log('최고 기록 도달 시점(강화 시도 횟수):', JSON.stringify(marks));
+
+// 3) 자동 강화(autoStep)만으로 처음부터 플레이: 목표 = 최고기록+2, 판매 후 반복, 방지권·부적 자동 구매
+console.log('\n3) 자동 강화로만 플레이 (목표 = 최고기록+2, 방지권·부적 자동 구매)');
+const { autoStep } = await import('../www/js/game.js');
+const a = newState();
+a.auto = { ...a.auto, onTarget: 'sell', onDestroy: 'continue', items: { guard: true, lucky: true, bless: false }, guardOnlyRisk: true };
+const m3 = {};
+let n = 0, stops = 0;
+while (n < 2e6 && a.best < MAX_LEVEL) {
+  a.auto.target = Math.min(MAX_LEVEL, a.best + 2);
+  const r = autoStep(a);
+  n++;
+  if (r.action === 'stop') { stops++; a.gold += 1000; }
+  for (const id of a.achieved) if (!a.claimed.includes(id)) claim(a, id);
+  for (const m of goals) if (a.best >= m && !m3[m]) m3[m] = a.stats.tries;
+}
+console.log('도달 시점(강화 횟수):', JSON.stringify(m3), '멈춤', stops, '발견 무기', a.weaponsFound.length, '업적', a.achieved.length);

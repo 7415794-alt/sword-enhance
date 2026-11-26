@@ -1,5 +1,5 @@
 // 화면 연결 · 렌더링
-import { VERSION, MAX_LEVEL, ITEMS, ACHIEVEMENTS, enhanceCost, swordName, tierOf } from './data.js';
+import { VERSION, MAX_LEVEL, ITEMS, ACHIEVEMENTS, DEX_BONUS, enhanceCost, swordName, tierOf } from './data.js';
 import { load, save, reset, newState } from './state.js';
 import { currentChances, sellPrice, canEnhance, enhance, sell, buy, goldPrice, claim } from './game.js';
 import { fmt, pct } from './format.js';
@@ -146,13 +146,13 @@ function renderShop() {
 
 // ---------- 도감 ----------
 function renderDex() {
-  $('dexCount').textContent = `${s.dex.length} / ${MAX_LEVEL} · 판매가 +${s.dex.length * 3}%`;
+  $('dexCount').textContent = `${s.dex.length} / ${MAX_LEVEL} · 판매가 +${Math.round(s.dex.length * DEX_BONUS * 100)}%`;
   let html = '';
   for (let lv = 1; lv <= MAX_LEVEL; lv++) {
     const got = s.dex.includes(lv);
     const t = tierOf(lv);
     html += `<div class="dex-cell ${got ? 'got' : ''}" style="--c:${t.color}">
-      ${got ? `<div class="mini">${swordSVG(lv)}</div>` : '<div class="mini q">?</div>'}
+      <i class="blade"></i>
       <b>+${lv}</b><span>${got ? t.name : '???'}</span></div>`;
   }
   $('dexGrid').innerHTML = html;

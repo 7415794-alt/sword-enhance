@@ -1,37 +1,59 @@
-// 밸런스 시뮬레이터: "+T 까지 강화 후 판매" 전략별 평균 수익과 진행 속도
+// 밸런스 시뮬레이터
 // 사용법: node tools/sim.js
-import { newState } from '../www/js/state.js';
-import { enhance, sell, sellPrice } from '../www/js/game.js';
-import { enhanceCost } from '../www/js/data.js';
-
 globalThis.localStorage ??= { getItem: () => null, setItem() {}, removeItem() {} };
+const { newState } = await import('../www/js/state.js');
+const { enhance, sell, buy, goldPrice, sellPrice } = await import('../www/js/game.js');
+const { enhanceCost, chances, MAX_LEVEL } = await import('../www/js/data.js');
 
-console.log('목표 | 시도당 평균 순이익 | 판매 1회당 시도 | 판매가');
-for (const target of [3, 5, 8, 10, 12, 15, 18, 20]) {
-  const s = newState();
-  s.gold = 1e13;
-  const start = s.gold;
-  let tries = 0;
-  const N = 200000;
-  for (let i = 0; i < N; i++) {
-    enhance(s);
-    tries++;
-    if (s.level >= target) sell(s);
+// 전략: 성공률이 낮으면 부적, 파괴 위험이 크면 방지권을 (없으면 사서) 사용
+function useItems(s, guardFrom, luckyBelow) {
+  const ch = chances(s.level);
+  const wantGuard = s.level >= guardFrom && ch.destroy > 0;
+  const wantLucky = ch.success + ch.great < luckyBelow;
+  for (const [id, want] of [['guard', wantGuard], ['lucky', wantLucky]]) {
+    if (want && s.items[id] === 0) {
+      if (!buy(s, id, 'frag') && s.gold >= goldPrice(s, id) + enhanceCost(s.level)) buy(s, id, 'gold');
+    }
+    s.use[id] = want && s.items[id] > 0;
   }
-  const profit = (s.gold - start) / tries;
-  console.log(`+${String(target).padStart(2)} | ${profit.toFixed(0).padStart(12)} | ${(tries / Math.max(1, s.stats.sells)).toFixed(1).padStart(8)} | ${sellPrice(newState(), target)}`);
 }
 
-// 처음 시작(골드 1000)부터 최고 기록 진행 속도: 안전하게 +5에서 팔다가 골드가 모이면 목표를 올림
+console.log('1) 목표 단계까지 올리고 판매 (방지권 +20부터 · 부적 성공률 30% 미만), 골드 무한, 최고기록=목표');
+console.log('목표 | 판매 1회당 시도 | 판매 1회당 순이익 | 판매가 대비');
+for (const target of [10, 20, 30, 50, 80, 100, 150, 200, 250, 299]) {
+  const s = newState();
+  s.gold = 1e15; s.best = target;
+  let tries = 0, spent = 0, earned = 0;
+  const N = 40;
+  while (s.stats.sells < N && tries < 2e6) {
+    if (s.gold < 1e14) { s.gold += 1e15; }
+    useItems(s, 20, 30);
+    const g0 = s.gold;
+    enhance(s); tries++;
+    spent += g0 - s.gold;
+    if (s.level >= target) { const r = sell(s); earned += r.price; }
+  }
+  const sp = spent / N, ea = earned / N;
+  console.log(`+${String(target).padStart(3)} | ${(tries / N).toFixed(0).padStart(8)} | 비용/판매가 ${(sp / ea).toFixed(2).padStart(6)} | 판매가 ${sellPrice(s, target).toExponential(2)}`);
+}
+
+// 2) 처음부터 플레이: 골드가 부족하면 +25에서 판매하며 모으고, 방지권 40개 살 돈이 생기면 기록 도전
+console.log('\n2) 처음부터 플레이 (돈이 모이면 기록+2를 목표로 아이템 써서 도전, 아니면 +25 파밍)');
+const { claim } = await import('../www/js/game.js');
 const s = newState();
 let t = 0;
 const marks = {};
-while (t < 300000 && s.best < 25) {
-  const goal = Math.max(3, Math.min(30, Math.floor(Math.log(s.gold / 100 + 1) / Math.log(1.6))));
-  if (s.gold < enhanceCost(s.level)) { if (s.level > 0) sell(s); else break; }
-  enhance(s);
-  t++;
-  if (s.level >= goal) sell(s);
-  for (const m of [5, 10, 15, 20, 25]) if (s.best >= m && !marks[m]) marks[m] = t;
+const goals = [10, 20, 30, 50, 80, 100, 150, 200, 250, 300];
+let pushing = false;
+while (t < 2e6 && s.best < MAX_LEVEL) {
+  if (s.level === 0) pushing = s.gold >= goldPrice(s, 'guard') * 40;
+  const target = pushing ? Math.min(MAX_LEVEL, s.best + 2) : Math.min(25, s.best + 2);
+  if (pushing) useItems(s, 20, 30); else { s.use.guard = false; s.use.lucky = false; }
+  if (s.gold < enhanceCost(s.level)) { if (s.level > 0) sell(s); else s.gold += 100; }
+  enhance(s); t++;
+  for (const id of s.achieved) if (!s.claimed.includes(id)) claim(s, id);
+  if (s.level >= target) sell(s);
+  for (const m of goals) if (s.best >= m && !marks[m]) marks[m] = t;
 }
-console.log('\n최고 기록 도달 시점(강화 시도 횟수):', marks, '최종 골드', Math.floor(s.gold));
+console.log('t', t, 'best', s.best, 'gold', s.gold.toExponential(2), 'stats', JSON.stringify(s.stats), 'items', JSON.stringify(s.items));
+console.log('최고 기록 도달 시점(강화 시도 횟수):', marks);

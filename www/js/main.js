@@ -8,6 +8,7 @@ import {
   currentChances, sellPrice, canEnhance, enhance, sell, buy, goldPrice, claim, claimAll, autoStep, priceBonus,
   costNow, upLv, checkAchievements, buyUpgrade, canRebirth, rebirth, offlineReward, offlineHours, maybeStartEvent, currentEvent, openChest,
   storeCurrent, sellStored, takeOut, toggleHunt, autoAssignHunt, storageCap, huntSlots, hunters, huntRate, huntTick, itemWorth, itemRate,
+  canReplaceWeakest, weakestStored,
 } from './game.js';
 import { onlineEnabled, submitScore, fetchTop, scoreOf, cleanName, ensureId } from './online.js';
 import { fmt, pct } from './format.js';
@@ -101,8 +102,9 @@ function renderForge() {
   $('sellPrice').textContent = s.level > 0 ? `💰 ${fmt(sellPrice(s))}` : '+0은 팔 수 없음';
   $('sellBtn').disabled = auto || s.level === 0;
   const cap = storageCap(s);
-  $('storeInfo').textContent = `${s.storage.length}/${cap}칸`;
-  $('storeBtn').disabled = auto || s.level === 0 || s.storage.length >= cap;
+  const full = s.storage.length >= cap;
+  $('storeInfo').textContent = full ? (canReplaceWeakest(s) ? '약한 무기와 교체' : '가득 참') : `${s.storage.length}/${cap}칸`;
+  $('storeBtn').disabled = auto || s.level === 0 || (full && !canReplaceWeakest(s));
   $('autoBtn').classList.toggle('running', !!auto);
   $('autoBtn').innerHTML = auto ? '<span>■ 중지</span><small>자동 강화 중</small>' : `<span>자동</span><small>목표 +${s.auto.target}</small>`;
 }
@@ -274,7 +276,9 @@ function showStored(r, speed = 1) {
   if (speed < 16) sfx('buy', s.settings.sound);
   const el = $('result');
   el.className = 'result sold';
-  el.innerHTML = `<b>📦 보관 완료</b><span>+${r.item.level} ${weaponOf(r.item.weapon).name} · ⚔️ ${fmt(attackOf(r.item.level, r.item.weapon))}</span>`;
+  el.innerHTML = r.replaced
+    ? `<b>📦 교체 보관</b><span>+${r.replaced.level} ${weaponOf(r.replaced.weapon).name} 판매(💰${fmt(r.replaced.price)}) → +${r.item.level} ${weaponOf(r.item.weapon).name} 보관</span>`
+    : `<b>📦 보관 완료</b><span>+${r.item.level} ${weaponOf(r.item.weapon).name} · ⚔️ ${fmt(attackOf(r.item.level, r.item.weapon))}</span>`;
   void el.offsetWidth;
   el.classList.add('pop');
   announceWeapon(r.next, speed >= 16);
@@ -282,13 +286,12 @@ function showStored(r, speed = 1) {
 
 function doStore() {
   if (auto || s.level === 0) return;
-  if (s.storage.length >= storageCap(s)) return toast('보관함이 가득 찼어요 (대장간 → 무기 창고 확장)');
+  if (s.storage.length >= storageCap(s) && !canReplaceWeakest(s)) return toast('보관함이 가득 찼고, 보관된 무기들이 더 강해요 (대장간 → 무기 창고 확장)');
   const before = s.achieved.length;
-  const r = storeCurrent(s);
+  const r = storeCurrent(s); // 사냥 슬롯은 가장 강한 무기로 자동 배치
   if (!r) return;
-  // 사냥 슬롯이 비어 있으면 바로 사냥에 내보냄
-  if (hunters(s).length < huntSlots(s)) toggleHunt(s, r.item.uid);
   showStored(r);
+  if (r.replaced) toast(`📦 가장 약한 +${r.replaced.level} ${weaponOf(r.replaced.weapon).name}을(를) 💰${fmt(r.replaced.price)}에 팔고 교체했어요`, 2600);
   afterChange(before);
 }
 

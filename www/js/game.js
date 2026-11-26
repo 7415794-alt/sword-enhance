@@ -143,15 +143,33 @@ export function huntTick(s, secs) {
   return g;
 }
 
+// 보관함에서 공격력이 가장 낮은 무기
+export const weakestStored = (s) => s.storage.reduce((w, x) => (!w || attackOf(x.level, x.weapon) < attackOf(w.level, w.weapon) ? x : w), null);
+
+// 보관함이 가득 찼을 때 지금 무기가 가장 약한 보관 무기보다 강하면 교체 가능
+export const canReplaceWeakest = (s) => {
+  const w = weakestStored(s);
+  return !!w && s.level > 0 && attackOf(s.level, s.weapon) > attackOf(w.level, w.weapon);
+};
+
 // 현재 무기를 보관하고 새 +0 무기를 받음
+// 보관함이 가득 차 있으면, 지금 무기가 더 강할 때만 가장 약한 무기를 팔고 그 자리에 보관
 export function storeCurrent(s) {
-  if (s.level < 1 || s.storage.length >= storageCap(s)) return null;
+  if (s.level < 1) return null;
+  let replaced = null;
+  if (s.storage.length >= storageCap(s)) {
+    if (!canReplaceWeakest(s)) return null;
+    const w = weakestStored(s);
+    s.storage.splice(s.storage.indexOf(w), 1);
+    replaced = { level: w.level, weapon: w.weapon, price: recordSale(s, w.level, w.weapon) };
+  }
   const item = { uid: s.nextUid++, weapon: s.weapon, level: s.level, hunting: false };
   s.storage.push(item);
   s.stats.stored++;
   const next = newWeapon(s);
+  autoAssignHunt(s); // 사냥 슬롯은 항상 가장 강한 무기로
   checkAchievements(s);
-  return { item, next };
+  return { item, next, replaced };
 }
 
 export function sellStored(s, uid) {
@@ -269,9 +287,9 @@ export function autoStep(s) {
   const a = s.auto;
   if (s.level >= Math.min(a.target, MAX_LEVEL)) {
     if (a.onTarget === 'store' && s.level > 0) {
-      const r = storeCurrent(s);
-      if (r) { autoAssignHunt(s); return { action: 'store', result: r }; }
-      return { action: 'sell', result: sell(s), note: '보관함이 가득 차 판매' };
+      const r = storeCurrent(s); // 가득 차 있으면 더 약한 무기와 교체
+      if (r) return { action: 'store', result: r };
+      return { action: 'sell', result: sell(s), note: '보관함의 무기들이 더 강해서 판매' };
     }
     if (a.onTarget === 'sell' && s.level > 0) return { action: 'sell', result: sell(s) };
     return { action: 'stop', reason: `목표 +${a.target} 달성!` };

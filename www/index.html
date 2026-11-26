@@ -53,7 +53,7 @@
       <section class="view" data-view="store">
         <div class="hunt-box" id="huntBox"></div>
         <div class="ach-head"><h2>보관함 <small id="storeCount"></small></h2><button class="btn small" id="autoHuntBtn">⚔️ 강한 무기로 사냥 배치</button></div>
-        <p class="hint">강화 화면의 <b>보관</b>으로 무기를 넣어 둘 수 있어요. 사냥에 내보내면 공격력만큼 골드를 벌어 오고, 꺼내서 다시 강화할 수도 있어요.</p>
+        <p class="hint">강화 화면의 <b>보관</b>으로 무기를 넣어 둘 수 있어요. 보관함이 가득 차면 가장 약한 무기보다 강할 때 자동으로 교체돼요(약한 무기는 판매). 사냥 슬롯은 항상 가장 강한 무기로 채워지고, 꺼내서 다시 강화할 수도 있어요.</p>
         <div id="storeList" class="list"></div>
       </section>
 
@@ -148,7 +148,7 @@
         <div class="field">
           <label>목표에 도달하면</label>
           <div class="seg-btns three"><button data-opt="onTarget:sell">판매 후 반복</button><button data-opt="onTarget:store">보관 후 반복</button><button data-opt="onTarget:stop">멈춤</button></div>
-          <small class="note">보관 후 반복: 보관함이 가득 차면 판매하고, 강한 무기는 자동으로 사냥에 배치해요.</small>
+          <small class="note">보관 후 반복: 보관함이 가득 차면 가장 약한 무기보다 강할 때만 교체(약한 무기는 판매)하고, 아니면 판매해요. 사냥은 항상 가장 강한 무기로 자동 배치돼요.</small>
         </div>
         <div class="field">
           <label>무기가 파괴되면</label>
